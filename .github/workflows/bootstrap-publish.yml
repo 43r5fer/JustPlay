@@ -33,6 +33,7 @@ jobs:
           test -f "$RUNNER_TEMP/unpacked/JustPlay/site/index.html"
           test -f "$RUNNER_TEMP/unpacked/JustPlay/electron/main.cjs"
           cp -a "$RUNNER_TEMP/unpacked/JustPlay/." "$GITHUB_WORKSPACE/"
+          rm -f .github/workflows/build-windows.yml .github/workflows/deploy-pages.yml
           rm -rf .justplay-source
           rm -f .github/workflows/bootstrap-publish.yml
 
