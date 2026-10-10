@@ -454,6 +454,15 @@ function registerRobloxIpc({ ipcMain, app, shell, safeStorage }) {
     await shell.openExternal(ROBLOX_SIGNUP_URL);
     return { ok: true };
   });
+  ipcMain.handle('roblox:open-app', async () => {
+    try {
+      await shell.openExternal('roblox://');
+      return { ok: true, message: 'Opening the Roblox app…' };
+    } catch {
+      await shell.openExternal('https://www.roblox.com/home');
+      return { ok: true, fallback: true, message: 'Opening Roblox in your browser. Install the official Roblox app for direct game launches.' };
+    }
+  });
   ipcMain.handle('roblox:sign-in', () => signIn(app, shell, safeStorage));
   ipcMain.handle('roblox:sign-out', () => signOut(app));
   ipcMain.handle('roblox:games', (_event, query) => listGames(query));
