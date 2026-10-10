@@ -1,21 +1,18 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, shell, session } = require('electron');
 const path = require('node:path');
 const { autoUpdater } = require('electron-updater');
-const { registerRobloxIpc } = require('./roblox.cjs');
 
 let mainWindow = null;
 let updateState = { status: 'idle', currentVersion: app.getVersion() };
 
 function publishUpdateState(patch) {
   updateState = { ...updateState, ...patch, currentVersion: app.getVersion() };
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('app:update-status', updateState);
-  }
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('flock:update-status', updateState);
 }
 
-function initializeAutoUpdater() {
+function configureUpdater() {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
@@ -24,61 +21,57 @@ function initializeAutoUpdater() {
   autoUpdater.on('update-available', info => publishUpdateState({
     status: 'available',
     version: String(info.version || ''),
-    percent: 0,
-    message: 'JustPlay ' + String(info.version || '') + ' is available. Download it, then restart to install.',
+    message: 'Flock ' + String(info.version || '') + ' is available.'
   }));
-  autoUpdater.on('update-not-available', () => publishUpdateState({
-    status: 'not-available',
-    version: app.getVersion(),
+  autoUpdater.on('update-not-available', () => publishUpdateState({ status: 'not-available' }));
+  autoUpdater.on('download-progress', info => publishUpdateState({
+    status: 'downloading',
+    percent: Math.max(0, Math.min(100, Number(info.percent) || 0))
   }));
-  autoUpdater.on('download-progress', progress => {
-    const percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
-    publishUpdateState({
-      status: 'downloading',
-      percent: percent,
-      message: 'Downloading update… ' + Math.round(percent) + '%',
-    });
-  });
   autoUpdater.on('update-downloaded', info => publishUpdateState({
     status: 'downloaded',
-    version: String(info.version || updateState.version || ''),
-    percent: 100,
-    message: 'The update is ready. Restart JustPlay to finish installing it.',
+    version: String(info.version || ''),
+    message: 'Flock is ready to restart and install the update.'
   }));
-  autoUpdater.on('error', () => {
-    console.warn('[JustPlay updater] An update operation failed.');
-    publishUpdateState({
-      status: 'error',
-      message: 'JustPlay could not check or download updates. Check your internet connection and try again.',
-    });
-  });
-  autoUpdater.checkForUpdates().catch(() => publishUpdateState({
+  autoUpdater.on('error', () => publishUpdateState({
     status: 'error',
-    message: 'JustPlay could not check for updates. Check your internet connection and try again.',
+    message: 'Flock could not check for updates right now.'
   }));
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
+function configureMediaPermissions() {
+  const allowed = new Set(['media', 'audioCapture', 'videoCapture']);
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+    return String(requestingOrigin || '').startsWith('file://') && allowed.has(permission);
+  });
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    const origin = details && (details.requestingUrl || details.securityOrigin) || '';
+    callback(String(origin).startsWith('file://') && allowed.has(permission));
+  });
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
+    width: 1360,
+    height: 900,
     minWidth: 900,
-    minHeight: 650,
+    minHeight: 640,
     show: false,
-    backgroundColor: '#101012',
+    backgroundColor: '#111214',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'assets', 'justplay.ico'),
+    title: 'Flock',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
-    },
+      sandbox: true
+    }
   });
+
   mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    initializeAutoUpdater();
+    configureUpdater();
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url).catch(() => {});
@@ -88,40 +81,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  registerRobloxIpc({ ipcMain, app, shell, safeStorage });
-
-  ipcMain.handle('app:update-status', () => updateState);
-  ipcMain.handle('app:update-check', async () => {
-    if (!app.isPackaged) {
-      return { status: 'unsupported', currentVersion: app.getVersion(), message: 'Update checks are available in the installed build.' };
-    }
-    try {
-      await autoUpdater.checkForUpdates();
-    } catch {
-      publishUpdateState({ status: 'error', message: 'JustPlay could not check for updates. Check your internet connection and try again.' });
-    }
-    return updateState;
-  });
-  ipcMain.handle('app:update-download', async () => {
-    if (!app.isPackaged) throw new Error('Update downloads are available in the installed build.');
-    if (updateState.status !== 'available') throw new Error('There is no update ready to download.');
-    await autoUpdater.downloadUpdate();
-    return { ok: true };
-  });
-  ipcMain.handle('app:update-install', async () => {
-    if (!app.isPackaged || updateState.status !== 'downloaded') {
-      throw new Error('Download an update before installing it.');
-    }
-    autoUpdater.quitAndInstall();
-    return { ok: true };
-  });
-
+  configureMediaPermissions();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 }).catch(error => {
-  console.error('[JustPlay] Startup failed:', error && error.message ? error.message : 'unknown error');
+  console.error('[Flock] Startup failed:', error && error.message ? error.message : 'unknown error');
 });
 
 app.on('window-all-closed', () => {
