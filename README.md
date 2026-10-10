@@ -2,7 +2,7 @@
 
 JustPlay is an unofficial Windows desktop launcher starter project with a clean UI, local profile folders, a version browser, an optional local display profile plus Microsoft sign-in when launching Minecraft, mod/resource-pack file management, and a Windows installer build configuration.
 
-**Latest Windows installer:** [JustPlay v0.2.1](https://github.com/43r5fer/JustPlay/releases/download/v0.2.1/JustPlay.exe). This release adds a dedicated JustPlay login screen and guest mode on top of the v0.2.0 in-app updater. Microsoft sign-in remains separate for official Minecraft Java Edition gameplay.
+**Latest Windows installer:** [JustPlay v0.2.2](https://github.com/43r5fer/JustPlay/releases/download/v0.2.2/JustPlay.exe). This release adds compatible Java runtime detection, official Minecraft skin sync, and encrypted saved-session launching for installed profiles. The in-app updater remains enabled.
 
 > **Important:** this package is source code, not a precompiled `.exe`. Build it using the steps below. It does not bypass Minecraft ownership. Microsoft sign-in is handled through the authentication library's window; JustPlay does not ask for your Microsoft password in its own form.
 
@@ -59,7 +59,7 @@ The public repository is `43r5fer/JustPlay`. The launcher source and landing pag
    ```
 
 2. The **Build and release JustPlay for Windows** workflow builds the NSIS installer on a Windows runner and attaches `JustPlay.exe` to the GitHub Release.
-3. The v0.2.1 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.1/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
+3. The v0.2.2 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.2/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
 4. To publish future website updates, ensure Settings → Pages uses GitHub Actions, then open Actions → Publish JustPlay website to GitHub Pages → Run workflow if a push does not trigger it.
 4. The Windows installer creates a Start Menu shortcut named **JustPlay** and a desktop shortcut, so Windows Search can find the installed app.
 
@@ -76,10 +76,12 @@ The app is not code-signed in this starter project. Windows SmartScreen may show
    - `JustPlay\mods\`
    - `JustPlay\config\`
 3. A local display profile is enough to set up the launcher and organize files. In Settings, you can also create a local JustPlay username/password account for the launcher; that account is saved only on this PC and does not authenticate to Minecraft services.
-4. To launch Minecraft through JustPlay, complete the supported Microsoft sign-in for an account with Minecraft: Java Edition access. A local JustPlay account only signs into the launcher profile; it cannot replace Minecraft's game-authentication and ownership checks.
+4. To launch Minecraft through JustPlay, complete Microsoft sign-in for an account with Minecraft: Java Edition access. A local JustPlay account only signs into the launcher profile; it cannot replace Minecraft's game-authentication and ownership checks.
+5. In Settings, use **Auto-detect** under Java Runtime to find installed Java executables. JustPlay chooses a compatible Java major version for the selected Minecraft version.
+6. In Settings, **Sync my skin** previews the active skin for the currently authenticated Minecraft Java profile. It uses Minecraft's official profile endpoint and does not modify your account's skin.
 5. Choose a Minecraft Java version. The first launch downloads the game files; later launches can use the installed profile.
 
-The Microsoft session token is held in memory in this initial build. You may need to sign in again after closing and reopening JustPlay. No Microsoft password is written to the settings file.
+After a successful Microsoft sign-in, JustPlay can save the Minecraft launcher session for up to 20 hours using Electron's OS-provided `safeStorage` encryption. This enables saved-session play for already-installed profiles. The cache is deleted when you explicitly sign out. No Microsoft password or refresh token is saved. On Windows, `safeStorage` protects the cached data using Windows DPAPI; it is not a server-side account session.
 
 ## Versions, Forge and OptiFine
 
@@ -98,7 +100,7 @@ Only install add-ons from sources you trust. This app does not verify the safety
 
 ## Known limitations of this initial build
 
-- A compatible Java runtime must be available on `PATH`. If Minecraft requires a different Java major version, install a compatible runtime and relaunch.
+- Java runtime detection searches `PATH`, `JAVA_HOME`, common JDK install directories and the official Minecraft Launcher runtime folder. If no compatible major version is found, install one from the Java downloads link in Docs.
 - The Microsoft authentication dependency is an external open-source library; its compatibility depends on Microsoft's current sign-in policies. Authentication failures are shown in the UI rather than bypassed.
 - Forge and OptiFine support varies by release. OptiFine still requires its official installer workflow.
 - This project has not been signed or independently audited, and this container cannot provide a production code-signing certificate.
@@ -122,6 +124,12 @@ If Microsoft sign-in opens successfully but Xbox/Minecraft verification fails, t
 
 JustPlay allows users to enter the app, choose a display name, install versions, and manage mods/resource packs without logging in immediately. The display name is only a local launcher profile; it is not a Minecraft identity and does not unlock multiplayer or game ownership. JustPlay will require valid Minecraft Java account authentication when starting the game. This project intentionally does not impersonate TLauncher or implement cracked/offline authentication that bypasses game access checks.
 
+
+## v0.2.2 Java, skin sync and saved-session play
+
+- Java runtime scanning checks `PATH`, `JAVA_HOME`, common Windows JDK directories, and the official Minecraft Launcher runtime folder. JustPlay picks a compatible Java major version for each selected Minecraft version and exposes the detected installs in Settings.
+- Skin sync uses the active Microsoft-authenticated Minecraft Java profile and reads the active skin texture URL from the official Minecraft profile service. The preview is read-only; it does not edit the account's skin.
+- After a successful, non-demo Microsoft Minecraft sign-in, JustPlay stores the actual launcher session in an Electron `safeStorage` encrypted file. Saved-session play is available for up to 20 hours and only for already-installed profiles whose local client JAR and asset cache are present. Explicit Microsoft sign-out clears the cached session. It does not fabricate tokens or convert failed entitlement checks into access.
 
 ## v0.2.1 JustPlay login screen and guest mode
 
