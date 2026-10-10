@@ -1,5 +1,12 @@
 # JustPlay release notes
 
+## v0.2.3 — October 2026
+
+- **Fabric Loader support:** adds a Fabric tab to the version library using Fabric Meta's stable supported game versions.
+- **Install and launch Fabric profiles:** JustPlay downloads the official Fabric installer, installs a compatible stable loader into the selected isolated game folder, and launches the resulting profile.
+- **Installed profile discovery:** successfully installed Fabric profiles appear under Installed and can use the existing saved-session flow after a successful Microsoft authentication.
+- **Account verification remains required:** this release does not add fake-token or cracked mode; valid Minecraft Java Edition access is still required.
+
 ## v0.2.2 — October 2026
 
 - **Java runtime auto-detection:** scans PATH, JAVA_HOME, common JDK installations, and the official Minecraft Launcher runtime directory. JustPlay selects a Java major version compatible with the selected Minecraft version.
