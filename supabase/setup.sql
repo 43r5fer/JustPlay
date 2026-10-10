@@ -189,6 +189,67 @@ grant execute on function private.flock_is_member(uuid) to authenticated;
 grant execute on function private.flock_is_admin(uuid,text[]) to authenticated;
 grant execute on function private.flock_are_friends(uuid,uuid) to authenticated;
 
+create or replace function private.flock_can_view_profile(p_user_id uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select p_user_id=(select auth.uid())
+    or exists(
+      select 1 from public.flock_friendships f
+      where f.status in ('accepted','pending')
+        and ((f.requester_id=(select auth.uid()) and f.addressee_id=p_user_id)
+          or (f.addressee_id=(select auth.uid()) and f.requester_id=p_user_id))
+    )
+    or exists(
+      select 1 from public.flock_conversation_members mine
+      join public.flock_conversation_members theirs on theirs.conversation_id=mine.conversation_id
+      where mine.user_id=(select auth.uid()) and theirs.user_id=p_user_id
+    );
+$$;
+
+create or replace function private.flock_can_send_friend_request(p_addressee_id uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select (select auth.uid()) is not null
+    and p_addressee_id is not null
+    and p_addressee_id <> (select auth.uid())
+    and not exists(
+      select 1 from public.flock_friendships f
+      where (f.requester_id=(select auth.uid()) and f.addressee_id=p_addressee_id)
+         or (f.addressee_id=(select auth.uid()) and f.requester_id=p_addressee_id)
+    );
+$$;
+revoke all on function private.flock_can_view_profile(uuid) from public, anon;
+revoke all on function private.flock_can_send_friend_request(uuid) from public, anon;
+grant execute on function private.flock_can_view_profile(uuid) to authenticated;
+grant execute on function private.flock_can_send_friend_request(uuid) to authenticated;
+
+create or replace function public.flock_find_friend_code(p_friend_code text)
+returns table(id uuid,username text,display_name text,friend_code text)
+language plpgsql security definer set search_path = ''
+as $$
+declare v_me uuid := (select auth.uid());
+begin
+  if v_me is null then raise exception 'Sign in to look up a friend code.'; end if;
+  if p_friend_code is null or p_friend_code !~ '^[0-9]{10}$' then
+    raise exception 'Enter the full 10-digit friend code.';
+  end if;
+  return query
+  select p.id,p.username,p.display_name,p.friend_code
+  from public.flock_profiles p
+  where p.friend_code=p_friend_code
+    and p.id<>v_me
+    and not exists(
+      select 1 from public.flock_friendships f
+      where f.status='blocked'
+        and ((f.requester_id=v_me and f.addressee_id=p.id)
+          or (f.addressee_id=v_me and f.requester_id=p.id))
+    )
+  limit 1;
+end;
+$$;
+revoke all on function public.flock_find_friend_code(text) from public, anon;
+grant execute on function public.flock_find_friend_code(text) to authenticated;
+
 create or replace function public.flock_create_direct_conversation(p_other_user uuid)
 returns uuid language plpgsql security definer set search_path = ''
 as $$
