@@ -389,6 +389,41 @@ async function listGames(query) {
   const games = await searchGames(clean);
   return { games: games, query: clean, source: clean ? 'Roblox search' : 'Popular experiences' };
 }
+async function gamesByPlaceIds(placeIds) {
+  const ids = [...new Set((Array.isArray(placeIds) ? placeIds : []).map(String).filter(value => /^\d{1,24}$/.test(value)))].slice(0, 100);
+  if (!ids.length) return [];
+  const known = new Map(POPULAR_GAMES.map(item => [item.placeId, item]));
+  let games = ids.map(id => {
+    const item = known.get(id);
+    return item ? {
+      id: id, placeId: id, name: item.name, creator: 'Roblox creator', description: '',
+      genre: item.genre, players: 0, visits: 0, iconUrl: '', featured: Boolean(item.featured),
+      url: 'https://www.roblox.com/games/' + id,
+    } : null;
+  }).filter(Boolean);
+  try {
+    const url = new URL('https://games.roblox.com/v1/games/multiget-place-details');
+    url.searchParams.set('placeIds', ids.join(','));
+    const details = await requestJson(url.toString());
+    if (Array.isArray(details)) {
+      const byId = new Map(details.map(item => [String(item.placeId || item.rootPlaceId || ''), item]));
+      const metadataGames = ids.map(id => {
+        const item = byId.get(id);
+        const normalized = normalizeGame(item ? { ...item, placeId: item.placeId || id } : null);
+        if (normalized) return normalized;
+        return games.find(game => game.placeId === id) || null;
+      }).filter(Boolean);
+      if (metadataGames.length) games = metadataGames;
+    }
+  } catch {}
+  return addIcons(games);
+}
+async function getFavoritePlaceIds(app) {
+  try {
+    const raw = JSON.parse(await fs.readFile(favoritesPath(app), 'utf8'));
+    return Array.isArray(raw) ? raw.map(String).filter(value => /^\d{1,24}$/.test(value)).slice(0, 200) : [];
+  } catch { return []; }
+}
 async function launchGame(shell, placeId) {
   const id = String(placeId || '').trim();
   if (!/^\d{1,24}$/.test(id)) throw new Error('This game does not have a valid Roblox place ID.');
@@ -423,12 +458,8 @@ function registerRobloxIpc({ ipcMain, app, shell, safeStorage }) {
   ipcMain.handle('roblox:sign-out', () => signOut(app));
   ipcMain.handle('roblox:games', (_event, query) => listGames(query));
   ipcMain.handle('roblox:launch', (_event, placeId) => launchGame(shell, placeId));
-  ipcMain.handle('roblox:favorites', async () => {
-    try {
-      const raw = JSON.parse(await fs.readFile(favoritesPath(app), 'utf8'));
-      return Array.isArray(raw) ? raw.map(String).filter(value => /^\d{1,24}$/.test(value)).slice(0, 200) : [];
-    } catch { return []; }
-  });
+  ipcMain.handle('roblox:favorites', () => getFavoritePlaceIds(app));
+  ipcMain.handle('roblox:favorites-games', async () => gamesByPlaceIds(await getFavoritePlaceIds(app)));
   ipcMain.handle('roblox:favorite-toggle', async (_event, placeId) => {
     const id = String(placeId || '').trim();
     if (!/^\d{1,24}$/.test(id)) throw new Error('Invalid Roblox place ID.');
