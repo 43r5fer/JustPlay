@@ -253,9 +253,9 @@ async function signIn(app, shell, safeStorage) {
   });
   return { ok: true, profile: publicProfile({ profile: profile }), state: await getState(app, safeStorage) };
 }
-async function signOut(app) {
+async function signOut(app, safeStorage) {
   try { await fs.unlink(sessionPath(app)); } catch {}
-  return { ok: true, state: await getState(app, require('electron').safeStorage) };
+  return { ok: true, state: await getState(app, safeStorage) };
 }
 function normalizeGame(raw) {
   if (!raw || typeof raw !== 'object') return null;
