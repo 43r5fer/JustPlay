@@ -196,6 +196,29 @@
     </main>
   </div>
 
+  <div id="localLoginOverlay" class="modal-backdrop account-gate-backdrop">
+    <section class="setup-modal account-gate" role="dialog" aria-modal="true" aria-labelledby="accountGateTitle">
+      <div class="setup-mark"><div class="brand-mark large-mark"><span></span><span></span><span></span><span></span></div></div>
+      <div class="eyebrow"><span class="eyebrow-dot"></span> YOUR JUSTPLAY PROFILE</div>
+      <h2 id="accountGateTitle">Welcome to <em>JustPlay.</em></h2>
+      <p class="setup-copy">Sign in to your local JustPlay account or make one in a few seconds. Your profile is separate from Minecraft authentication.</p>
+      <form id="accountGateForm">
+        <label for="gateUsername">USERNAME</label>
+        <input id="gateUsername" name="username" type="text" minlength="3" maxlength="24" placeholder="e.g. BlockBuilder" autocomplete="username" required>
+        <label for="gatePassword" class="gate-password-label">PASSWORD</label>
+        <input id="gatePassword" name="password" type="password" minlength="8" maxlength="256" placeholder="Your JustPlay password" autocomplete="current-password" required>
+        <div class="local-account-actions gate-actions">
+          <button id="gateCreateBtn" class="secondary-button" type="button">Create account</button>
+          <button id="gateSignInBtn" class="primary-button" type="submit">Sign in <span>→</span></button>
+        </div>
+      </form>
+      <div id="accountGateFeedback" class="error-message gate-feedback" role="status" aria-live="polite" hidden></div>
+      <div class="gate-divider"><span>OR</span></div>
+      <button id="gateGuestBtn" class="secondary-button full-button" type="button">Continue as guest</button>
+      <p class="setup-legal">JustPlay accounts are stored on this PC and do not unlock Minecraft. Official gameplay may require Microsoft sign-in with an account that has Java Edition access.</p>
+    </section>
+  </div>
+
   <div id="setupOverlay" class="modal-backdrop setup-backdrop" hidden>
     <section class="setup-modal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
       <div class="setup-mark"><div class="brand-mark large-mark"><span></span><span></span><span></span><span></span></div></div>
