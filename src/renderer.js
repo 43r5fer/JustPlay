@@ -241,6 +241,47 @@ async function warmProfileMedia(rows) {
   const paths = Array.from(new Set((rows || []).map(x => x && x.avatar_path).filter(Boolean)));
   await Promise.all(paths.map(path => getSignedUrl(path).catch(() => '')));
 }
+let lastUpdatePrompt = '';
+function wireDesktopUpdates() {
+  const desktop = window.flockDesktop;
+  if (!desktop || typeof desktop.onUpdateStatus !== 'function') return;
+  const handle = state => {
+    if (!state || !state.status) return;
+    if (state.status === 'available') {
+      const version = String(state.version || 'new version');
+      if (lastUpdatePrompt === 'available:' + version) return;
+      lastUpdatePrompt = 'available:' + version;
+      showModal({
+        kicker: 'FLOCK / UPDATE',
+        title: 'A fresh Flock is ready.',
+        description: 'Version ' + version + ' is available. Downloading it will not remove your account or cloud messages.',
+        body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>The update is downloaded directly from the official Flock GitHub release.</p></div>',
+        primary: 'Download update',
+        onPrimary: async () => {
+          await desktop.downloadUpdate();
+          closeModal();
+          toast('Downloading Flock update', 'You can keep chatting while the update downloads.');
+        }
+      });
+    } else if (state.status === 'downloaded') {
+      if (lastUpdatePrompt === 'downloaded:' + state.version) return;
+      lastUpdatePrompt = 'downloaded:' + state.version;
+      showModal({
+        kicker: 'FLOCK / UPDATE',
+        title: 'Ready when you are.',
+        description: 'Flock ' + String(state.version || '') + ' has finished downloading.',
+        body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Flock will close and restart to finish installing the update. Your cloud chats are saved in your account.</p></div>',
+        primary: 'Restart and update',
+        onPrimary: async () => { await desktop.installUpdate(); }
+      });
+    } else if (state.status === 'error' && lastUpdatePrompt !== 'error') {
+      lastUpdatePrompt = 'error';
+      toast('Update check failed', state.message || 'Check your internet connection later.');
+    }
+  };
+  desktop.onUpdateStatus(handle);
+  if (typeof desktop.getUpdateStatus === 'function') desktop.getUpdateStatus().then(handle).catch(() => {});
+}
 function setAppLoading(message) {
   $('conversationList').innerHTML = '<div class="side-empty">' + escapeHtml(message || 'Loading your chats…') + '</div>';
 }
@@ -1546,6 +1587,7 @@ function subscribeGlobal() {
 }
 async function initialize() {
   bindEvents();
+  wireDesktopUpdates();
   if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
     navigator.serviceWorker.register('./service-worker.js').catch(() => {});
   }
