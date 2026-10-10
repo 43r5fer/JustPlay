@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('justplay', {
   configureRoblox: clientId => ipcRenderer.invoke('roblox:configure', clientId),
   openRobloxOAuthDashboard: () => ipcRenderer.invoke('roblox:open-oauth-dashboard'),
   openRobloxSignup: () => ipcRenderer.invoke('roblox:open-signup'),
+  openRobloxApp: () => ipcRenderer.invoke('roblox:open-app'),
   signInRoblox: () => ipcRenderer.invoke('roblox:sign-in'),
   signOutRoblox: () => ipcRenderer.invoke('roblox:sign-out'),
   listRobloxGames: query => ipcRenderer.invoke('roblox:games', query),
