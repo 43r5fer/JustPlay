@@ -1,26 +1,21 @@
-# JustPlay release notes
+# Flock release notes
 
-## v0.3.1 — Roblox search compatibility
+## v1.0.0 — Flock cross-platform messaging rebuild
 
-- Updated experience search to use Roblox's current documented-by-example query parameter casing and `pageType=all` pattern for more reliable game results.
-- Retained curated popular-game fallbacks when Roblox search is unavailable or rate-limited.
+- Replaced the previous Roblox launcher application with **Flock**, a global account-based messenger.
+- Added Supabase Auth with username metadata, password confirmation, friend codes, account recovery, and synchronized user profiles.
+- Added private global tables for profiles, friendships, conversations, membership/roles, messages, receipts, statuses, status views and reactions.
+- Added row-level security policies, private media bucket access and Supabase Realtime publication for the Flock schema.
+- Added direct chats, groups, message edit/delete, replies, emoji reactions, read receipts, YouTube links, uploads, voice recording, video notes, statuses and profile backgrounds.
+- Added an installable PWA and responsive layout, plus Capacitor configuration and CI for a Windows setup installer and Android APK.
+- Kept Windows and Android user interfaces on the same src/ frontend.
 
+### Notes
 
-## v0.3.0 — Roblox launcher rebuild
+- The Android CI artifact is debug-signed for installation/testing. Public store release needs a dedicated release keystore.
+- Flock is not audited as end-to-end encrypted; message content is stored in Supabase with RLS and media access controls.
+- Verify email confirmation, realtime updates and camera/microphone behavior on real devices before broad distribution.
 
-- **New Roblox-focused desktop UI:** replaced the Minecraft launcher workflow with a discover page, search, featured experience, responsive game cards, and favorites.
-- **One-click play:** selected experiences are opened with Roblox's documented \`roblox://placeId=<id>\` deep link, with a browser fallback if the desktop protocol cannot be opened.
-- **Game discovery:** uses Roblox web search and experience metadata/thumbnail endpoints, with popular-game suggestions when search is unavailable.
-- **Optional verified profile connection:** implemented Roblox OAuth 2.0 / OpenID Connect profile sign-in using PKCE, state validation, and a loopback callback.
-- **Local favorites:** saved place IDs are kept on the current Windows profile.
-- **No Roblox password collection:** profile sign-in happens on Roblox's website. OAuth tokens are written only through Electron secure storage when available.
-- **Account-session distinction:** Roblox OAuth confirms the JustPlay profile but does not replace the sign-in session of the official Roblox desktop client.
+## v0.3.1 — Previous app
 
-## v0.2.3 — Minecraft launcher predecessor
-
-- Official Fabric Loader installation and launch support.
-- JavaScript syntax check passed and Windows installer build succeeded.
-
-## v0.2.2 — Minecraft launcher predecessor
-
-- Java runtime auto-detection, authenticated skin sync, and encrypted saved-session launching for previously installed profiles.
+- Last release of the previous JustPlay Roblox launcher. This release is replaced by the Flock codebase.
