@@ -1,713 +1,524 @@
 'use strict';
 
 const api = window.justplay;
-let appState = null;
-let catalog = null;
-let selectedEntry = null;
-let activePage = 'dashboard';
-let activeFilter = 'release';
-let searchTerm = '';
-let visibleEntries = [];
-let lastProgress = 0;
+const $ = function (id) { return document.getElementById(id); };
+let robloxState = { configured: false, clientId: '', profile: null, connected: false, redirectUri: 'http://127.0.0.1:53682/callback' };
+let favorites = new Set();
+let games = [];
+let favoriteGames = [];
+let gameById = new Map();
+let visibleCount = 12;
+let searchQuery = '';
+let searchTimer = null;
 let toastTimer = null;
-let javaRuntimes = [];
-let javaRuntimeScanInProgress = false;
+let isSearching = false;
+let activeView = 'discover';
 
-const $ = id => document.getElementById(id);
-const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const titleCase = value => String(value || '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-const readableSize = value => { const n = Number(value) || 0; if (n < 1024) return `${n} B`; if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`; return `${(n / 1024 ** 2).toFixed(1)} MB`; };
-
-function showToast(message, kind = 'normal', duration = 4800) {
-  const toast = $('messageToast');
-  $('toastText').textContent = message;
-  toast.classList.add('visible');
-  toast.dataset.kind = kind;
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+function safeImageUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.protocol !== 'https:') return '';
+    if (!url.hostname.toLowerCase().endsWith('.rbxcdn.com')) return '';
+    return url.href;
+  } catch { return ''; }
+}
+function formatNumber(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num) || num < 1) return '';
+  try { return new Intl.NumberFormat(undefined, { notation: num >= 10000 ? 'compact' : 'standard', maximumFractionDigits: 1 }).format(num); }
+  catch { return String(num); }
+}
+function toast(title, message, isError) {
+  $('toastTitle').textContent = title || 'JustPlay';
+  $('toastMessage').textContent = message || '';
+  $('launchToast').classList.toggle('toast-error', Boolean(isError));
+  $('launchToast').classList.add('visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), duration);
+  toastTimer = setTimeout(function () { $('launchToast').classList.remove('visible'); }, 5200);
 }
-
-function renderUpdateStatus(state) {
-  if (!state || !$('updateBanner')) return;
-  const banner = $('updateBanner');
-  const button = $('updatePrimaryBtn');
-  const visible = ['available', 'downloading', 'downloaded', 'error'].includes(state.status);
-  banner.hidden = !visible;
-  if (!visible) return;
-
-  $('updateTitle').textContent = state.status === 'available' ? 'A new JustPlay version is available'
-    : state.status === 'downloading' ? 'Downloading your JustPlay update'
-    : state.status === 'downloaded' ? 'Your update is ready to install'
-    : 'Update check failed';
-  $('updateMessage').textContent = state.message || (state.version ? `JustPlay ${state.version} is available.` : 'Check your internet connection and try again.');
-  const percent = Math.max(0, Math.min(100, Number(state.percent) || 0));
-  $('updateProgressTrack').hidden = state.status !== 'downloading';
-  $('updateProgressFill').style.width = `${percent}%`;
-  button.disabled = state.status === 'downloading';
-  if (state.status === 'available') {
-    button.textContent = 'Download update';
-    button.dataset.updateAction = 'download';
-  } else if (state.status === 'downloaded') {
-    button.textContent = 'Restart to install';
-    button.dataset.updateAction = 'install';
-  } else if (state.status === 'error') {
-    button.textContent = 'Try again';
-    button.dataset.updateAction = 'check';
-  } else {
-    button.textContent = `Downloading ${Math.round(percent)}%`;
-    button.dataset.updateAction = 'none';
-  }
+function setFeedback(id, message, isError) {
+  const node = $(id);
+  if (!node) return;
+  node.textContent = message || '';
+  node.classList.toggle('is-error', Boolean(isError));
 }
-
-async function handleUpdateAction() {
-  const button = $('updatePrimaryBtn');
-  const action = button.dataset.updateAction;
-  button.disabled = true;
-  try {
-    if (action === 'download') {
-      renderUpdateStatus({ status: 'downloading', percent: 0, message: 'Starting secure update download…' });
-      await api.downloadUpdate();
-    } else if (action === 'install') {
-      await api.installUpdate();
-    } else if (action === 'check') {
-      await api.checkForUpdates();
-      renderUpdateStatus(await api.getUpdateStatus());
-    }
-  } catch (error) {
-    showToast(error.message || 'Could not update JustPlay.', 'error');
-    renderUpdateStatus({ status: 'error', message: 'The update could not be completed. Check your connection and try again.' });
-  } finally {
-    if (button.isConnected && button.dataset.updateAction !== 'install') button.disabled = false;
-  }
-}
-
-function showAccountGateFeedback(message, kind = 'error') {
-  const feedback = $('accountGateFeedback');
-  feedback.textContent = message || '';
-  feedback.hidden = !message;
-  feedback.classList.toggle('is-error', kind === 'error');
-  feedback.classList.toggle('is-success', kind === 'success');
-}
-
-function enterLauncher(sessionType, username = '') {
-  if (!appState) {
-    showAccountGateFeedback('JustPlay could not load your local settings. Restart the app and try again.');
-    return;
-  }
-  appState.localAccountName = sessionType === 'local' ? username : '';
-  $('localLoginOverlay').hidden = true;
-  renderHeader();
-  renderSettings();
-  if (!appState.setupComplete) {
-    $('setupOverlay').hidden = false;
-    previewDiskChoice();
-  } else {
-    $('setupOverlay').hidden = true;
-  }
-  if (sessionType === 'guest') {
-    showToast('Continuing as guest. Microsoft sign-in may still be required to launch Minecraft.');
-  } else {
-    showToast(`Welcome to JustPlay, ${username}!`);
-  }
-}
-
-async function submitAccountGate(action) {
-  const username = $('gateUsername').value;
-  const password = $('gatePassword').value;
-  const signInButton = $('gateSignInBtn');
-  const createButton = $('gateCreateBtn');
-  signInButton.disabled = true;
-  createButton.disabled = true;
-  showAccountGateFeedback('', 'success');
-  try {
-    const result = action === 'create'
-      ? await api.createLocalAccount(username, password)
-      : await api.signInLocalAccount(username, password);
-    appState = result.state || await api.getState();
-    $('gatePassword').value = '';
-    showAccountGateFeedback('', 'success');
-    enterLauncher('local', result.localAccountName || username.trim());
-  } catch (error) {
-    showAccountGateFeedback(error.message || (action === 'create' ? 'Could not create your JustPlay account.' : 'Could not sign in.'));
-  } finally {
-    signInButton.disabled = false;
-    createButton.disabled = false;
-  }
-}
-
-function renderSkinPreview() {
-  const skin = appState?.minecraftSkin;
-  const image = $('skinTexturePreview');
-  if (!skin || !skin.textureUrl || !skin.playerName) {
-    image.hidden = true;
-    image.removeAttribute('src');
-    $('skinPlayerName').textContent = 'No skin synced yet';
-    $('skinSyncDetails').textContent = 'Sign in with Microsoft, then sync to preview your active skin texture here.';
-    return;
-  }
-  try {
-    const url = new URL(skin.textureUrl);
-    if (url.protocol !== 'https:' || url.hostname !== 'textures.minecraft.net') throw new Error('Invalid texture host');
-    image.src = url.toString();
-    image.hidden = false;
-  } catch {
-    image.hidden = true;
-    image.removeAttribute('src');
-  }
-  $('skinPlayerName').textContent = skin.playerName;
-  const synced = skin.syncedAt ? new Date(skin.syncedAt).toLocaleString() : 'Previously synced';
-  $('skinSyncDetails').textContent = `Active ${skin.variant || 'CLASSIC'} skin texture · Synced ${synced}`;
-}
-
-async function refreshJavaRuntimes(showFeedback = false) {
-  if (javaRuntimeScanInProgress) return;
-  javaRuntimeScanInProgress = true;
-  const button = $('detectJavaBtn');
-  if (button) button.disabled = true;
-  if (showFeedback) $('javaRuntimeFeedback').textContent = 'Searching PATH, JAVA_HOME, and common Java/Minecraft runtime folders…';
-  try {
-    const result = await api.detectJavaRuntimes();
-    javaRuntimes = Array.isArray(result.runtimes) ? result.runtimes : [];
-    const select = $('javaRuntimeSelect');
-    select.innerHTML = '<option value="">Auto-detect compatible runtime</option>' + javaRuntimes.map(item =>
-      `<option value="${esc(item.path)}">Java ${esc(item.major)} · ${esc(item.path)}</option>`
-    ).join('');
-    const selectedPath = result.selectedPath || appState?.javaPath || '';
-    if (selectedPath && javaRuntimes.some(item => item.path === selectedPath)) select.value = selectedPath;
-    const selected = javaRuntimes.find(item => item.path === select.value);
-    $('javaRuntimeCurrent').textContent = selected ? `Java ${selected.major} · ${selected.path}` : (javaRuntimes.length ? 'Automatic selection by Minecraft version' : 'No Java runtime detected');
-    if (appState) {
-      appState.javaPath = result.selectedPath || appState.javaPath || '';
-    }
-    $('javaRuntimeFeedback').textContent = javaRuntimes.length
-      ? `Found ${javaRuntimes.length} Java runtime${javaRuntimes.length === 1 ? '' : 's'}. JustPlay chooses a compatible runtime for the selected game version.`
-      : 'No Java runtime was found. Install a compatible Java runtime, then try Auto-detect again.';
-    if (showFeedback) showToast(javaRuntimes.length ? `Detected ${javaRuntimes.length} Java runtime${javaRuntimes.length === 1 ? '' : 's'}.` : 'No Java runtime was detected.', javaRuntimes.length ? 'normal' : 'error');
-  } catch (error) {
-    $('javaRuntimeCurrent').textContent = 'Java detection unavailable';
-    $('javaRuntimeFeedback').textContent = error.message || 'Could not detect Java runtimes.';
-    if (showFeedback) showToast(error.message || 'Could not detect Java runtimes.', 'error');
-  } finally {
-    javaRuntimeScanInProgress = false;
-    if (button) button.disabled = false;
-  }
-}
-
-function goTo(page) {
-  if (!document.getElementById(`page-${page}`)) return;
-  activePage = page;
-  document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === `page-${page}`));
-  document.querySelectorAll('[data-page]').forEach(el => el.classList.toggle('active', el.classList.contains('nav-item') && el.dataset.page === page));
-  $('pageCrumb').textContent = page.toUpperCase().replace('RESOURCEPACKS', 'RESOURCE PACKS');
-  if (page === 'mods') refreshAssets('mods');
-  if (page === 'resourcepacks') refreshAssets('resourcepacks');
-  if (page === 'settings') renderSettings();
-  document.querySelector('.content-area').scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function currentMcVersion() {
-  if (!selectedEntry) return catalog?.latest?.release || 'latest';
-  if (selectedEntry.mcVersion) return selectedEntry.mcVersion;
-  return selectedEntry.id || catalog?.latest?.release || 'latest';
-}
-
-function isEntryInstalled(entry) {
-  if (!entry) return false;
-  return !!entry.installed || ['installed-forge', 'installed-optifine', 'installed-fabric', 'installed-quilt', 'installed-neoforge', 'installed-custom'].includes(entry.kind);
-}
-
-function entryKindLabel(entry) {
-  if (!entry) return 'Release';
-  if (entry.kind === 'forge' || entry.kind === 'installed-forge') return 'Forge';
-  if (entry.kind === 'fabric' || entry.kind === 'installed-fabric') return 'Fabric';
-  if (entry.kind === 'optifine' || entry.kind === 'optifine-site' || entry.kind === 'installed-optifine') return 'OptiFine';
-  if (entry.kind === 'installed-quilt') return 'Quilt';
-  if (entry.kind === 'installed-neoforge') return 'NeoForge';
-  if (entry.kind === 'installed-custom') return 'Custom';
-  if (entry.type === 'snapshot') return 'Snapshot';
-  if (entry.type === 'old_alpha' || entry.type === 'old_beta') return 'Legacy';
-  return entry.type === 'release' ? 'Release' : titleCase(entry.type || 'Version');
-}
-
-function entryDescription(entry) {
-  if (!entry) return 'Select a build from the version library.';
-  if (entry.kind === 'forge') return `Official Forge installer · Minecraft ${entry.mcVersion} · Forge ${entry.loaderVersion}. JustPlay will download the installer from Forge's Maven repository and ask the launcher core to prepare this profile.`;
-  if (entry.kind === 'fabric') return `Official Fabric Loader for Minecraft ${entry.mcVersion}. JustPlay downloads Fabric's official installer and prepares an isolated profile in your Game Versions folder.`;
-  if (entry.kind === 'optifine' || entry.kind === 'optifine-site') return 'OptiFine is distributed through its official website. Open the source page and follow the installer instructions; JustPlay will not bypass ads, verification, or installer prompts.';
-  if (entry.kind?.startsWith('installed-')) return `Installed profile in your Game Versions library. Base Minecraft: ${entry.mcVersion || 'unknown'}.`;
-  if (entry.type === 'snapshot') return 'A Minecraft Java Edition snapshot from Mojang. Snapshots may be experimental and can affect compatibility with worlds.';
-  if (entry.type === 'old_beta' || entry.type === 'old_alpha') return 'Legacy Minecraft Java Edition build. Old versions may require a compatible Java runtime and may not work with every current launcher library.';
-  return `Official Minecraft Java Edition ${entry.id} metadata from Mojang. First launch downloads required game files.`;
-}
-
-function updateSelectedDetail() {
-  const entry = selectedEntry;
-  const exists = Boolean(entry);
-  const id = entry?.label || entry?.id || 'Latest Release';
-  $('detailVersionName').textContent = id;
-  $('detailVersionDescription').textContent = entryDescription(entry);
-  $('detailVersionType').textContent = entryKindLabel(entry);
-  $('detailVersionStatus').textContent = !exists ? 'Choose a version' : isEntryInstalled(entry) ? 'Installed' : ((entry.kind === 'forge' || entry.kind === 'optifine' || entry.kind === 'optifine-site') ? 'Installer available' : 'Ready to install');
-  $('detailExtraNote').textContent = !appState?.accountName
-    ? (appState?.cachedSessionAvailable ? `A recent saved session for ${appState.cachedMinecraftAccountName || 'your Minecraft profile'} is available for already-installed versions.` : 'Sign in with Microsoft before launching. Your Microsoft password is never entered in a JustPlay form.')
-    : `Signed in as ${appState.accountName}. Game files are stored in this profile's folder.`;
-  const action = $('detailActionBtn');
-  action.disabled = !exists || !appState?.setupComplete;
-  if (!entry) action.innerHTML = 'Choose a version <span>→</span>';
-  else if (entry.kind === 'optifine' || entry.kind === 'optifine-site') action.innerHTML = 'Open official downloads <span>↗</span>';
-  else if (entry.kind === 'forge') action.innerHTML = `${isEntryInstalled(entry) ? 'Play Forge' : 'Install Forge & play'} <span>→</span>`;
-  else if (entry.kind === 'fabric') action.innerHTML = `${isEntryInstalled(entry) ? 'Play Fabric' : 'Install Fabric & play'} <span>→</span>`;
-  else action.innerHTML = `${isEntryInstalled(entry) ? 'Play now' : 'Install & play'} <span>→</span>`;
-  $('quickSelectedVersion').textContent = selectedEntry?.label || selectedEntry?.id || 'Latest Release';
-  $('quickSelectedDetail').textContent = entry ? `${entryKindLabel(entry)} · ${isEntryInstalled(entry) ? 'Installed' : 'Available to install'}` : 'Choose a version to continue';
-  $('quickLaunchBtn').disabled = !entry || !appState?.setupComplete;
-  $('quickLaunchBtn').innerHTML = entry ? `${isEntryInstalled(entry) ? 'Play now' : (entry.kind === 'forge' ? 'Install Forge & play' : entry.kind === 'fabric' ? 'Install Fabric & play' : entry.kind?.includes('optifine') ? 'Get OptiFine' : 'Install & play')} <span>→</span>` : 'Install & play <span>→</span>';
-  const canUseSavedSession = Boolean(entry && appState?.cachedSessionAvailable && appState?.setupComplete && isEntryInstalled(entry) && !['optifine', 'optifine-site'].includes(entry.kind));
-  $('quickOfflineBtn').hidden = !canUseSavedSession;
-  $('quickOfflineBtn').disabled = !canUseSavedSession;
-  $('detailOfflineBtn').hidden = !canUseSavedSession;
-  $('detailOfflineBtn').disabled = !canUseSavedSession;
-  $('detailOpenFolderBtn').disabled = !appState?.setupComplete;
-  $('modsInstanceLabel').textContent = appState?.rootPath ? `Selected instance: ${currentMcVersion()}` : 'Set up JustPlay first.';
-  $('packsInstanceLabel').textContent = appState?.rootPath ? `Selected instance: ${currentMcVersion()}` : 'Set up JustPlay first.';
-  const quickSelect = $('quickVersionSelect');
-  if (entry && entry.kind === 'vanilla' && entry.type === 'release' && [...quickSelect.options].some(o => o.value === entry.id)) quickSelect.value = entry.id;
-}
-
-function itemsForFilter() {
-  if (!catalog) return [];
-  if (activeFilter === 'release') return catalog.release || [];
-  if (activeFilter === 'snapshot') return catalog.snapshot || [];
-  if (activeFilter === 'legacy') return catalog.legacy || [];
-  if (activeFilter === 'forge') return catalog.forge || [];
-  if (activeFilter === 'fabric') return catalog.fabric || [];
-  if (activeFilter === 'optifine') return catalog.optifine || [];
-  if (activeFilter === 'installed') {
-    const vanilla = [...(catalog.release || []), ...(catalog.snapshot || []), ...(catalog.legacy || [])].filter(v => v.installed);
-    return [...(catalog.installed || []), ...vanilla].sort((a, b) => String(b.mcVersion || b.id).localeCompare(String(a.mcVersion || a.id), undefined, { numeric: true }));
-  }
-  return catalog.release || [];
-}
-
-function renderVersionList() {
-  const list = $('versionList');
-  let entries = itemsForFilter();
-  if (searchTerm) {
-    const needle = searchTerm.toLowerCase();
-    entries = entries.filter(v => `${v.label || ''} ${v.id || ''} ${v.mcVersion || ''} ${v.loaderVersion || ''} ${v.kind || ''} ${v.type || ''}`.toLowerCase().includes(needle));
-  }
-  $('catalogResultCount').textContent = `${entries.length.toLocaleString()} builds`;
-  visibleEntries = entries.slice(0, 500);
-  if (!visibleEntries.length) {
-    list.innerHTML = `<div class="empty-state">${activeFilter === 'installed' ? 'No installed profiles found yet. Install a vanilla version or add a loader with its official installer.' : 'No matching versions. Try a different search.'}</div>`;
-    return;
-  }
-  list.innerHTML = visibleEntries.map((entry, index) => {
-    const selected = selectedEntry && entry.id === selectedEntry.id && entry.kind === selectedEntry.kind;
-    const kind = entryKindLabel(entry).toLowerCase();
-    const chipClass = ['release','snapshot','forge','fabric','optifine'].includes(kind) ? kind : '';
-    const date = entry.releaseTime ? new Date(entry.releaseTime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : (entry.kind?.startsWith('installed-') ? 'Local profile' : (entry.kind === 'forge' ? `MC ${entry.mcVersion}` : 'Official catalog'));
-    const itemLabel = entry.label || entry.id;
-    return `<button class="version-row ${selected ? 'active' : ''}" role="listitem" data-entry-index="${index}" aria-pressed="${!!selected}">
-      <span class="version-mini">${esc((entry.mcVersion || entry.id || 'JP').slice(0, 4))}</span>
-      <span class="version-row-main"><strong>${esc(itemLabel)}</strong><span>${esc(date)}${entry.kind === 'forge' ? ` · Minecraft ${esc(entry.mcVersion)}` : ''}</span></span>
-      <span class="version-row-side"><span class="type-chip ${chipClass}">${esc(entryKindLabel(entry))}</span>${isEntryInstalled(entry) ? '<span class="installed-check" title="Installed">✓</span>' : ''}</span>
-    </button>`;
-  }).join('') + (entries.length > visibleEntries.length ? `<div class="empty-state">Showing the first ${visibleEntries.length} matches. Use search to narrow the catalog.</div>` : '');
-}
-
-function selectEntry(entry, scroll = false) {
-  if (!entry) return;
-  selectedEntry = entry;
-  updateSelectedDetail();
-  renderVersionList();
-  if (scroll) goTo('versions');
-}
-
-function populateQuickSelect() {
-  if (!catalog) return;
-  const select = $('quickVersionSelect');
-  const releases = (catalog.release || []).slice(0, 30);
-  select.innerHTML = releases.map(v => `<option value="${esc(v.id)}">${esc(v.id)}</option>`).join('');
-  if (catalog.latest?.release && releases.some(v => v.id === catalog.latest.release)) select.value = catalog.latest.release;
-  const chosen = releases.find(v => v.id === select.value) || releases[0];
-  if (chosen) selectEntry(chosen);
-}
-
-function renderCounts() {
-  if (!catalog) return;
-  $('versionCount').textContent = (catalog.release?.length || 0).toLocaleString();
-  $('countRelease').textContent = (catalog.release?.length || 0).toLocaleString();
-  $('countSnapshot').textContent = (catalog.snapshot?.length || 0).toLocaleString();
-  $('countLegacy').textContent = (catalog.legacy?.length || 0).toLocaleString();
-  $('countForge').textContent = (catalog.forge?.length || 0).toLocaleString();
-  $('countFabric').textContent = (catalog.fabric?.length || 0).toLocaleString();
-  $('countOptifine').textContent = (catalog.optifine?.length || 0).toLocaleString();
-  const vanillaInstalled = [...(catalog.release || []), ...(catalog.snapshot || []), ...(catalog.legacy || [])].filter(v => v.installed).length;
-  $('countInstalled').textContent = ((catalog.installed?.length || 0) + vanillaInstalled).toLocaleString();
-}
-
-async function refreshCatalog({ silent = false } = {}) {
-  if (!silent) {
-    $('versionList').innerHTML = '<div class="empty-state">Refreshing from official version sources…</div>';
-  }
-  try {
-    catalog = await api.listVersions();
-    renderCounts();
-    populateQuickSelect();
-    renderVersionList();
-    if (selectedEntry) {
-      const sameCategory = itemsForFilter().find(v => v.id === selectedEntry.id && v.kind === selectedEntry.kind);
-      if (sameCategory) selectedEntry = sameCategory;
-    }
-    updateSelectedDetail();
-    if (!silent) showToast('Version catalog refreshed from official sources.');
-  } catch (error) {
-    $('versionList').innerHTML = `<div class="empty-state">${esc(error.message || 'Could not load versions.')}<br><br>Check your network and try Refresh list.</div>`;
-    if (!silent) showToast(error.message || 'Could not refresh versions.', 'error');
-  }
-}
-
-function renderSettings() {
-  if (!appState) return;
-  $('settingsRootPath').textContent = appState.rootPath || 'Not set up yet';
-  $('settingsAccountName').textContent = appState.accountName || 'Not signed in';
-  $('localAccountCurrent').textContent = appState.localAccountName || 'Not signed in this session';
-  $('signOutLocalAccountBtn').hidden = !appState.localAccountName;
-  $('ramSelect').value = appState.maxRam || '4G';
-  renderSkinPreview();
-  $('diskSummary').innerHTML = appState.rootPath
-    ? `<span class="status-dot"></span>Created on ${esc(appState.storageDrive || 'your selected drive')}. New profile data stays under this JustPlay folder.`
-    : '<span class="status-dot"></span>Storage drive will be selected during setup.';
-}
-
-function renderHeader() {
-  if (!appState) return;
-  const name = appState.accountName || appState.localAccountName || appState.displayName || 'New player';
-  $('sidebarPlayerName').textContent = name;
-  $('avatarGlyph').textContent = (name.trim()[0] || 'J').toUpperCase();
-  $('accountStatus').textContent = appState.accountName ? 'Minecraft connected' : appState.localAccountName ? 'JustPlay account' : 'Local display profile';
-  $('signInLabel').textContent = appState.accountName ? appState.accountName : 'Sign in with Microsoft';
-  $('settingsSignInBtn').textContent = appState.accountName ? 'Connected' : 'Sign in';
-  $('signOutBtn').classList.toggle('hidden', !appState.accountName);
-  $('rootPathButton').textContent = appState.rootPath || 'Not set up yet';
-  $('settingsRootPath').textContent = appState.rootPath || 'Not set up yet';
-}
-
-function setProgress({ title = 'Preparing Minecraft…', message = 'Getting things ready.', progress = null } = {}) {
-  $('progressOverlay').hidden = false;
-  $('progressTitle').textContent = title;
-  $('progressMessage').textContent = message;
-  if (progress !== null && Number.isFinite(Number(progress))) lastProgress = Math.max(lastProgress, Math.min(100, Number(progress)));
-  $('progressBar').style.width = `${lastProgress}%`;
-  $('progressPercent').textContent = `${Math.round(lastProgress)}%`;
-}
-
-function hideProgress() {
-  $('progressOverlay').hidden = true;
-  lastProgress = 0;
-  $('progressBar').style.width = '0%';
-}
-
-async function launchSelected(mode = 'online') {
-  if (!selectedEntry) { showToast('Choose a version first.'); goTo('versions'); return; }
-  if (!appState?.setupComplete) { $('setupOverlay').hidden = false; return; }
-  if (mode === 'cached' && !appState?.cachedSessionAvailable) { showToast('Sign in with Microsoft successfully once while online to enable saved-session play.', 'error'); return; }
-  if (mode !== 'cached' && !appState.accountName) {
-    showToast('Sign in with Microsoft before launching Minecraft.');
-    await signInFlow();
-    if (!appState.accountName) return;
-  }
-  const entry = { ...selectedEntry, mcVersion: selectedEntry.mcVersion || selectedEntry.id };
-  if (entry.kind === 'optifine' || entry.kind === 'optifine-site') {
-    try { await api.openOfficial('optifine'); showToast('Follow the official OptiFine installer steps, then choose the profile under Installed.'); } catch (e) { showToast(e.message || 'Could not open OptiFine.', 'error'); }
-    return;
-  }
-  lastProgress = 1;
-  setProgress({ title: entry.kind === 'forge' ? 'Preparing Forge…' : entry.kind === 'fabric' ? (isEntryInstalled(entry) ? 'Launching Fabric…' : 'Installing Fabric…') : (isEntryInstalled(entry) ? 'Launching Minecraft…' : 'Installing Minecraft…'), message: entry.kind === 'forge' ? `Preparing Forge for ${entry.mcVersion}` : entry.kind === 'fabric' ? `Preparing Fabric for ${entry.mcVersion}` : `Preparing ${entry.id}`, progress: 1 });
-  try {
-    const result = await api.launch(entry, mode);
-    hideProgress();
-    if (result?.external) { showToast(result.message || 'Opened the official installer page.'); return; }
-    if (result?.started) {
-      showToast(mode === 'cached' ? 'Starting this already-installed profile with your recent saved Minecraft session. Full offline operation still depends on local game files being complete.' : 'Minecraft is starting. This profile is ready to launch again from JustPlay.');
-      await refreshCatalog({ silent: true });
-      if (entry.kind === 'forge' || entry.kind === 'fabric') {
-        await refreshCatalog({ silent: true });
-        const installed = (catalog?.installed || []).find(v => v.kind === (entry.kind === 'forge' ? 'installed-forge' : 'installed-fabric') && v.mcVersion === entry.mcVersion);
-        if (installed) selectEntry(installed);
-      }
-    }
-  } catch (error) {
-    hideProgress();
-    showToast(error.message || 'Minecraft could not start.', 'error', 6500);
-  }
-}
-
-async function signInFlow() {
-  if (appState?.accountName) { showToast(`Signed in as ${appState.accountName}.`); return; }
-  $('signInBtn').disabled = true;
-  $('signInLabel').textContent = 'Opening Microsoft sign-in…';
-  showToast('Continue in the Microsoft sign-in window. JustPlay does not collect your password.', 'normal', 6000);
-  try {
-    const result = await api.signIn();
-    appState = await api.getState();
-    renderHeader(); renderSettings(); updateSelectedDetail();
-    showToast(`Welcome${result.accountName ? `, ${result.accountName}` : ''}!`);
-  } catch (error) {
-    showToast(error.message || 'Microsoft sign-in did not complete.', 'error', 7000);
-  } finally {
-    $('signInBtn').disabled = false;
-    $('signInLabel').textContent = appState?.accountName || 'Sign in with Microsoft';
-  }
-}
-
-async function refreshAssets(kind) {
-  const target = kind === 'mods' ? 'modsFileList' : 'packsFileList';
-  const node = $(target);
-  if (!appState?.setupComplete) { node.innerHTML = '<div class="empty-state">Set up JustPlay before managing files.</div>'; return; }
-  node.innerHTML = '<div class="empty-state">Looking for files…</div>';
-  try {
-    const files = await api.listFiles(kind, currentMcVersion());
-    if (!files.length) { node.innerHTML = `<div class="empty-state">No ${kind === 'mods' ? 'mods' : 'resource packs'} listed for this profile yet.<br>Add a file above to get started.</div>`; return; }
-    node.innerHTML = files.map(file => `<div class="asset-row"><div class="asset-name"><span class="asset-icon">${kind === 'mods' ? '✣' : '▧'}</span><span><strong title="${esc(file.name)}">${esc(file.name)}</strong><small>${esc(file.modified?.slice(0, 10) || '')}</small></span></div><span class="asset-meta">${readableSize(file.size)}</span><span class="asset-meta">${file.folderType === 'shared' ? 'Shared folder' : 'This profile'}</span><button class="asset-delete" data-remove-kind="${kind}" data-remove-name="${esc(file.name)}" data-remove-folder="${file.folderType}">Remove</button></div>`).join('');
-  } catch (error) {
-    node.innerHTML = `<div class="empty-state">${esc(error.message || 'Could not list files.')}</div>`;
-  }
-}
-
-async function addFiles(kind) {
-  if (!appState?.setupComplete) { showToast('Set up JustPlay first.'); return; }
-  try {
-    const result = await api.addFiles(kind, currentMcVersion());
-    if (result.cancelled) return;
-    showToast(result.count ? `Added ${result.count} file${result.count === 1 ? '' : 's'} to your library.` : 'No supported files were added. Check the file types.', result.count ? 'normal' : 'error');
-    await refreshAssets(kind);
-  } catch (error) { showToast(error.message || 'Could not add files.', 'error'); }
-}
-
-async function openFolder(target) {
-  if (!appState?.setupComplete) { showToast('Set up JustPlay first.'); return; }
-  try { await api.openFolder(target, currentMcVersion()); } catch (error) { showToast(error.message || 'Could not open folder.', 'error'); }
-}
-
-async function setupSubmit(event) {
-  event.preventDefault();
-  $('setupError').hidden = true;
-  $('setupSubmitBtn').disabled = true;
-  $('setupSubmitBtn').innerHTML = 'Creating your folders…';
-  try {
-    const result = await api.setup($('setupName').value);
-    appState = result.state;
-    renderHeader(); renderSettings();
-    $('setupOverlay').hidden = true;
-    showToast(`JustPlay folders created on ${result.selectedDrive}.`);
-    await refreshCatalog({ silent: true });
-    updateSelectedDetail();
-  } catch (error) {
-    $('setupError').textContent = error.message || 'Setup failed. Check disk permissions and try again.';
-    $('setupError').hidden = false;
-  } finally {
-    $('setupSubmitBtn').disabled = false;
-    $('setupSubmitBtn').innerHTML = 'Set up JustPlay <span>→</span>';
-  }
-}
-
-async function previewDiskChoice() {
-  try {
-    const disks = await api.getDisks();
-    const best = disks[0];
-    $('setupDiskPreview').textContent = best ? `${best.id} has the most free space (${best.free}) and will be tried first.` : 'A writable folder in your user profile will be used if drive scanning is unavailable.';
-  } catch {
-    $('setupDiskPreview').textContent = 'The app will choose the best writable location automatically.';
-  }
-}
-
-function bindEvents() {
-  document.querySelectorAll('[data-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.page)));
-  document.querySelectorAll('[data-open-folder]').forEach(el => el.addEventListener('click', () => openFolder(el.dataset.openFolder)));
-  $('accountGateForm').addEventListener('submit', event => {
-    event.preventDefault();
-    submitAccountGate('sign-in');
-  });
-  $('gateCreateBtn').addEventListener('click', () => submitAccountGate('create'));
-  $('gateGuestBtn').addEventListener('click', () => enterLauncher('guest'));
-
-  $('signInBtn').addEventListener('click', signInFlow);
-  $('quickOfflineBtn').addEventListener('click', () => launchSelected('cached'));
-  $('detailOfflineBtn').addEventListener('click', () => launchSelected('cached'));
-  $('detectJavaBtn').addEventListener('click', () => refreshJavaRuntimes(true));
-  $('javaRuntimeSelect').addEventListener('change', async event => {
-    try {
-      const result = await api.setJavaRuntime(event.target.value);
-      appState = result.state || await api.getState();
-      const selected = javaRuntimes.find(item => item.path === appState.javaPath);
-      $('javaRuntimeCurrent').textContent = selected ? `Java ${selected.major} · ${selected.path}` : 'Automatic selection by Minecraft version';
-      $('javaRuntimeFeedback').textContent = selected ? `Saved Java ${selected.major} for runtime selection. Compatibility is checked again for every selected Minecraft version.` : 'Java will be automatically selected for the game version when you launch it.';
-      showToast('Java runtime preference saved.');
-      updateSelectedDetail();
-    } catch (error) {
-      showToast(error.message || 'Could not save Java runtime.', 'error');
-      await refreshJavaRuntimes(false);
-    }
-  });
-  $('syncSkinBtn').addEventListener('click', async () => {
-    const button = $('syncSkinBtn');
-    button.disabled = true;
-    $('skinSyncFeedback').textContent = 'Connecting to the official Minecraft profile service…';
-    try {
-      const result = await api.syncSkin();
-      appState = result.state || await api.getState();
-      renderSkinPreview();
-      renderHeader();
-      $('skinSyncFeedback').textContent = `Synced ${result.skin.playerName}’s active skin texture from Minecraft.`;
-      showToast('Minecraft skin synced.');
-    } catch (error) {
-      $('skinSyncFeedback').textContent = error.message || 'Could not sync your skin.';
-      showToast(error.message || 'Could not sync your skin.', 'error');
-    } finally {
-      button.disabled = false;
-    }
-  });
-  $('settingsSignInBtn').addEventListener('click', signInFlow);
-  $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
-  $('updateDismissBtn').addEventListener('click', () => { $('updateBanner').hidden = true; });
-  api.onUpdateStatus(renderUpdateStatus);
-
-  $('createLocalAccountBtn').addEventListener('click', async () => {
-    const username = $('justplayUsername').value;
-    const password = $('justplayPassword').value;
-    try {
-      const result = await api.createLocalAccount(username, password);
-      appState = result.state || await api.getState();
-      $('justplayPassword').value = '';
-      $('localAccountFeedback').textContent = `Local JustPlay account created and signed in as ${result.localAccountName}.`;
-      renderHeader(); renderSettings();
-      showToast('JustPlay local account created.');
-    } catch (error) {
-      $('localAccountFeedback').textContent = error.message || 'Could not create this account.';
-      showToast(error.message || 'Could not create this account.', 'error');
-    }
-  });
-  $('justplayAccountForm').addEventListener('submit', async event => {
-    event.preventDefault();
-    try {
-      const result = await api.signInLocalAccount($('justplayUsername').value, $('justplayPassword').value);
-      appState = result.state || await api.getState();
-      $('justplayPassword').value = '';
-      $('localAccountFeedback').textContent = `Signed in as ${result.localAccountName} on this PC.`;
-      renderHeader(); renderSettings();
-      showToast(`Signed in to JustPlay as ${result.localAccountName}.`);
-    } catch (error) {
-      $('localAccountFeedback').textContent = error.message || 'Could not sign in.';
-      showToast(error.message || 'Could not sign in.', 'error');
-    }
-  });
-  $('signOutLocalAccountBtn').addEventListener('click', async () => {
-    try {
-      const result = await api.signOutLocalAccount();
-      appState = result.state || await api.getState();
-      $('localAccountFeedback').textContent = 'Signed out of the local JustPlay account.';
-      renderHeader(); renderSettings();
-      showToast('Signed out of the local JustPlay account.');
-    } catch (error) {
-      showToast(error.message || 'Could not sign out.', 'error');
-    }
-  });
-  $('docsSignInBtn').addEventListener('click', signInFlow);
-  $('signOutBtn').addEventListener('click', async () => {
-    try { await api.signOut(); appState = await api.getState(); renderHeader(); renderSettings(); updateSelectedDetail(); showToast('Signed out of this JustPlay session.'); }
-    catch (e) { showToast(e.message || 'Could not sign out.', 'error'); }
-  });
-  $('openRootBtn').addEventListener('click', () => openFolder('root'));
-  $('rootPathButton').addEventListener('click', () => openFolder('root'));
-  $('settingsOpenRoot').addEventListener('click', () => openFolder('root'));
-  $('settingsOpenGame').addEventListener('click', () => openFolder('game'));
-  $('detailOpenFolderBtn').addEventListener('click', () => openFolder('instance'));
-  $('quickLaunchBtn').addEventListener('click', launchSelected);
-  $('detailActionBtn').addEventListener('click', launchSelected);
-  $('quickVersionSelect').addEventListener('change', event => {
-    const entry = (catalog?.release || []).find(v => v.id === event.target.value);
-    if (entry) selectEntry(entry);
-  });
-  document.querySelectorAll('.catalog-tab').forEach(button => button.addEventListener('click', () => {
-    activeFilter = button.dataset.filter;
-    document.querySelectorAll('.catalog-tab').forEach(tab => tab.classList.toggle('active', tab === button));
-    renderVersionList();
-  }));
-  $('versionSearch').addEventListener('input', event => { searchTerm = event.target.value.trim(); renderVersionList(); });
-  $('versionList').addEventListener('click', event => {
-    const row = event.target.closest('[data-entry-index]');
-    if (!row) return;
-    const entry = visibleEntries[Number(row.dataset.entryIndex)];
-    if (entry) selectEntry(entry);
-  });
-  $('refreshVersionsBtn').addEventListener('click', async () => { catalog = null; await refreshCatalog(); });
-  $('addModBtn').addEventListener('click', () => addFiles('mods'));
-  $('addPackBtn').addEventListener('click', () => addFiles('resourcepacks'));
-  $('openInstanceModsBtn').addEventListener('click', () => openFolder('instance'));
-  $('modsFileList').addEventListener('click', handleRemoveFile);
-  $('packsFileList').addEventListener('click', handleRemoveFile);
-  $('ramSelect').addEventListener('change', async event => {
-    try { await api.setRam(event.target.value); appState = await api.getState(); renderSettings(); $('ramSaveState').textContent = `Saved: ${event.target.value} maximum memory for future launches.`; showToast('Memory preference saved.'); }
-    catch (error) { showToast(error.message || 'Could not save memory preference.', 'error'); }
-  });
-  $('setupForm').addEventListener('submit', setupSubmit);
-  $('openForgeSource').addEventListener('click', () => api.openOfficial('forge').catch(e => showToast(e.message, 'error')));
-  $('openFabricSource').addEventListener('click', () => api.openOfficial('fabric').catch(e => showToast(e.message, 'error')));
-  $('openOptifineSource').addEventListener('click', () => api.openOfficial('optifine').catch(e => showToast(e.message, 'error')));
-  $('docsForgeBtn').addEventListener('click', () => api.openOfficial('forge').catch(e => showToast(e.message, 'error')));
-  $('docsOptifineBtn').addEventListener('click', () => api.openOfficial('optifine').catch(e => showToast(e.message, 'error')));
-  $('docsJavaBtn').addEventListener('click', () => api.openOfficial('java').catch(e => showToast(e.message, 'error')));
-  $('toastClose').addEventListener('click', () => $('messageToast').classList.remove('visible'));
-  api.onMinecraftStatus(status => {
-    if (!status) return;
-    if (['progress', 'installing', 'downloading-forge', 'installing-fabric'].includes(status.state)) {
-      const title = status.state === 'downloading-forge' ? 'Downloading Forge installer…' : status.state === 'installing-fabric' ? 'Installing Fabric Loader…' : status.state === 'installing' ? 'Installing game files…' : 'Preparing Minecraft…';
-      setProgress({ title, message: status.message || 'Preparing files…', progress: status.progress ?? null });
-    } else if (status.state === 'ready') {
-      $('progressMessage').textContent = status.message || 'Minecraft started.';
-      hideProgress();
-    } else if (status.state === 'closed') {
-      hideProgress();
-      showToast(status.message || 'Minecraft closed.', status.code === 0 ? 'normal' : 'error');
-    } else if (status.state === 'error') {
-      hideProgress();
-      showToast(status.message || 'Minecraft encountered an error.', 'error', 7000);
-    }
-  });
-}
-
-async function handleRemoveFile(event) {
-  const button = event.target.closest('[data-remove-name]');
+function setBusy(button, isBusy, busyText) {
   if (!button) return;
-  const kind = button.dataset.removeKind;
-  const name = button.dataset.removeName;
-  const folderType = button.dataset.removeFolder;
-  if (!window.confirm(`Remove “${name}” from ${folderType === 'shared' ? 'the shared folder' : 'this profile'}?`)) return;
-  try {
-    await api.removeFile(kind, currentMcVersion(), name, folderType);
-    showToast(`Removed ${name}.`);
-    await refreshAssets(kind);
-  } catch (error) { showToast(error.message || 'Could not remove file.', 'error'); }
+  if (isBusy) {
+    if (!button.dataset.originalText) button.dataset.originalText = button.textContent.trim();
+    button.disabled = true;
+    if (busyText) button.textContent = busyText;
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+    delete button.dataset.originalText;
+  }
 }
-
-async function init() {
+function showAuthSetup(expand) {
+  $('authScreen').hidden = false;
+  $('appScreen').hidden = true;
+  if (expand) $('oauthSetupBody').hidden = false;
+  $('oauthSetupSummary').classList.toggle('expanded', !$('oauthSetupBody').hidden);
+}
+function switchToApp() {
+  $('authScreen').hidden = true;
+  $('appScreen').hidden = false;
+  renderProfile();
+}
+function showSettings() {
+  $('settingsOverlay').hidden = false;
+  $('settingsClientIdInput').value = robloxState.clientId || '';
+  $('settingsRedirectUri').textContent = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  renderSettingsProfile();
+}
+function closeSettings() {
+  $('settingsOverlay').hidden = true;
+}
+function renderSettingsProfile() {
+  const profile = robloxState.profile;
+  $('settingsProfileStatus').textContent = profile
+    ? 'This Roblox profile was verified using Roblox OAuth. The official Roblox app manages game sessions.'
+    : 'No Roblox profile is connected. You can still browse and launch public experiences.';
+  $('settingsDisplayName').textContent = profile ? (profile.displayName || profile.username) : 'Not connected';
+  $('settingsUsername').textContent = profile ? '@' + (profile.username || 'Roblox player') : '@not_connected';
+  $('settingsSignInBtn').textContent = profile ? 'Connected' : 'Connect';
+  $('settingsSignInBtn').disabled = Boolean(profile);
+  $('settingsSignOutBtn').hidden = !profile;
+  const avatar = $('settingsAvatar');
+  const fallback = $('settingsAvatarFallback');
+  const source = safeImageUrl(profile && profile.avatarUrl);
+  avatar.hidden = !source;
+  avatar.src = source || '';
+  fallback.hidden = Boolean(source);
+  fallback.textContent = (profile && (profile.displayName || profile.username) || 'J').slice(0, 1).toUpperCase();
+}
+function renderProfile() {
+  const profile = robloxState.profile;
+  const username = profile ? profile.username : 'Guest player';
+  const displayName = profile ? (profile.displayName || profile.username) : 'Browse mode';
+  $('sidebarDisplayName').textContent = displayName;
+  $('sidebarUsername').textContent = profile ? '@' + username : 'Roblox profile optional';
+  $('sidebarAvatarFallback').textContent = displayName.slice(0, 1).toUpperCase();
+  $('topAvatarFallback').textContent = displayName.slice(0, 1).toUpperCase();
+  const source = safeImageUrl(profile && profile.avatarUrl);
+  for (const item of [['sidebarAvatar', 'sidebarAvatarFallback'], ['topAvatar', 'topAvatarFallback']]) {
+    const image = $(item[0]);
+    const fallback = $(item[1]);
+    image.src = source || '';
+    image.hidden = !source;
+    fallback.hidden = Boolean(source);
+  }
+  $('connectionBadge').classList.toggle('connected', Boolean(profile));
+  $('connectionBadgeText').textContent = profile ? 'Roblox profile connected' : 'Browsing as guest';
+  $('topConnectBtn').hidden = Boolean(profile);
+  $('robloxSignInLabel').textContent = profile ? 'Roblox connected' : 'Continue with Roblox';
+  $('robloxSignInBtn').disabled = Boolean(profile);
+  if (profile) {
+    $('robloxSignInBtn').classList.add('is-connected');
+    $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">✓</span><span>Connected as ' + escapeHtml(profile.username) + '</span>';
+    $('robloxSignInBtn').onclick = function () { switchToApp(); };
+    $('browseWithoutSignInBtn').textContent = 'Continue to games →';
+  } else {
+    $('robloxSignInBtn').classList.remove('is-connected');
+    $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">◩</span><span>Continue with Roblox</span><span class="button-arrow">↗</span>';
+    $('robloxSignInBtn').onclick = beginRobloxSignIn;
+    $('browseWithoutSignInBtn').textContent = 'Browse games first →';
+  }
+  $('oauthClientIdInput').value = robloxState.clientId || '';
+  $('redirectUriText').textContent = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  $('oauthSetupBody').hidden = Boolean(robloxState.configured);
+  $('oauthSetupSummary').classList.toggle('expanded', !robloxState.configured);
+  $('favoritesCount').textContent = String(favorites.size);
+  renderSettingsProfile();
+}
+async function loadRobloxState() {
+  try {
+    robloxState = await api.robloxState();
+    robloxState.redirectUri = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+    $('redirectUriText').textContent = robloxState.redirectUri;
+    $('settingsRedirectUri').textContent = robloxState.redirectUri;
+    renderProfile();
+    if (robloxState.profile) switchToApp();
+  } catch (error) {
+    setFeedback('authFeedback', error.message || 'Could not read Roblox sign-in settings.', true);
+  }
+}
+async function beginRobloxSignIn() {
+  if (!robloxState.configured) {
+    showAuthSetup(true);
+    setFeedback('authFeedback', 'Add your public Roblox OAuth Client ID below to enable secure profile sign-in. You can still browse and launch games without connecting.');
+    $('oauthClientIdInput').focus();
+    return;
+  }
+  const button = $('robloxSignInBtn');
+  button.disabled = true;
+  $('robloxSignInLabel').textContent = 'Waiting for Roblox…';
+  setFeedback('authFeedback', 'Roblox will open in your browser. Sign in there and approve the requested profile access.');
+  try {
+    const result = await api.signInRoblox();
+    robloxState = result.state || await api.robloxState();
+    renderProfile();
+    switchToApp();
+    await loadGames('');
+    toast('Roblox connected', 'Signed in as @' + (robloxState.profile && robloxState.profile.username || 'Roblox player') + '. Choose a game to start playing.');
+  } catch (error) {
+    setFeedback('authFeedback', error.message || 'Roblox sign-in failed. Check the OAuth app settings and redirect URI.', true);
+    toast('Could not connect Roblox', error.message || 'Check your Roblox OAuth configuration.', true);
+  } finally {
+    button.disabled = Boolean(robloxState.profile);
+    if (!robloxState.profile) $('robloxSignInLabel').textContent = 'Continue with Roblox';
+  }
+}
+async function saveClientId(inputId, feedbackId) {
+  const value = $(inputId).value.trim();
+  try {
+    const result = await api.configureRoblox(value);
+    robloxState = result.state || await api.robloxState();
+    renderProfile();
+    setFeedback(feedbackId, 'Roblox OAuth Client ID saved on this PC. Make sure this exact redirect URI is registered with your OAuth app.');
+    toast('Roblox sign-in configured', 'You can now connect your Roblox profile.');
+    return true;
+  } catch (error) {
+    setFeedback(feedbackId, error.message || 'Could not save the Roblox Client ID.', true);
+    return false;
+  }
+}
+async function copyRedirectUri(id, feedbackId) {
+  const text = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  try {
+    await navigator.clipboard.writeText(text);
+    if (feedbackId) setFeedback(feedbackId, 'Redirect URI copied. Paste it into the Roblox OAuth app settings.');
+    else toast('Redirect URI copied', 'Paste it into your Roblox OAuth app redirect URI field.');
+  } catch {
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch {}
+    input.remove();
+    if (copied) toast('Redirect URI copied', 'Paste it into your Roblox OAuth app settings.');
+    else toast('Redirect URI', text);
+  }
+}
+function navigate(view) {
+  activeView = view === 'favorites' ? 'favorites' : 'discover';
+  document.querySelectorAll('.view').forEach(function (node) {
+    node.classList.toggle('active', node.id === (activeView === 'favorites' ? 'viewFavorites' : 'viewDiscover'));
+  });
+  $('navDiscover').classList.toggle('active', activeView === 'discover');
+  $('navFavorites').classList.toggle('active', activeView === 'favorites');
+  $('breadcrumbTitle').textContent = activeView === 'favorites' ? 'Favorites' : 'Discover';
+  if (activeView === 'favorites') loadFavoriteGames();
+}
+function rememberGames(list) {
+  (list || []).forEach(function (game) {
+    if (game && game.placeId) gameById.set(String(game.placeId), game);
+  });
+}
+function cardMarkup(game) {
+  const id = String(game.placeId || game.id || '');
+  const favorite = favorites.has(id);
+  const iconUrl = safeImageUrl(game.iconUrl);
+  const badge = game.featured ? '<span class="game-badge">POPULAR</span>' : '';
+  const players = formatNumber(game.players);
+  const playerMarkup = players ? '<span class="game-players"><i></i>' + escapeHtml(players) + ' playing</span>' : '<span class="game-players">↗ Experience</span>';
+  const name = escapeHtml(game.name || 'Roblox experience');
+  const creator = escapeHtml(game.creator || 'Roblox creator');
+  const description = escapeHtml(game.description || 'Jump in and explore this Roblox experience with your friends.');
+  const genre = escapeHtml(game.genre || 'Experience');
+  const icon = iconUrl
+    ? '<img src="' + escapeHtml(iconUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer">'
+    : '';
+  const initial = escapeHtml((game.name || 'R').slice(0, 1).toUpperCase());
+  return '<article class="game-card" data-game-id="' + escapeHtml(id) + '">' +
+    '<div class="game-card-art"><div class="game-placeholder"><span>' + initial + '</span></div>' + icon + badge +
+    '<button class="favorite-button ' + (favorite ? 'is-favorite' : '') + '" data-favorite-id="' + escapeHtml(id) + '" aria-label="' + (favorite ? 'Remove from favorites' : 'Add to favorites') + '" title="' + (favorite ? 'Remove from favorites' : 'Add to favorites') + '">' + (favorite ? '♥' : '♡') + '</button></div>' +
+    '<div class="game-card-body"><div class="game-card-title-row"><div class="game-card-title" title="' + name + '">' + name + '</div></div>' +
+    '<div class="game-card-creator">By ' + creator + '</div><p class="game-card-description">' + description + '</p>' +
+    '<div class="game-card-meta"><span class="genre-chip">' + genre + '</span>' + playerMarkup + '</div>' +
+    '<button class="game-play-button" data-play-id="' + escapeHtml(id) + '">Play experience <span>↗</span></button></div></article>';
+}
+function renderGrid(nodeId, list, totalLabel) {
+  const node = $(nodeId);
+  if (!list || !list.length) {
+    node.innerHTML = '<div class="loading-grid empty-grid-state"><strong>No experiences to show yet.</strong><p>Try another search or refresh the list.</p></div>';
+    return;
+  }
+  const shown = list.slice(0, visibleCount);
+  node.innerHTML = shown.map(cardMarkup).join('');
+  node.querySelectorAll('img').forEach(function (image) {
+    image.addEventListener('error', function () { image.hidden = true; });
+  });
+  if (nodeId === 'gamesGrid') {
+    $('loadMoreBtn').hidden = list.length <= shown.length;
+    $('gamesResultCount').textContent = totalLabel || (list.length + ' experiences');
+    $('loadMoreBtn').textContent = 'Load more experiences (' + Math.min(12, list.length - shown.length) + ') ↓';
+  }
+}
+function setSpotlight(game) {
+  if (!game) {
+    $('spotlightTitle').textContent = 'Discover something new.';
+    $('spotlightDescription').textContent = 'Explore Roblox experiences and jump right in.';
+    $('spotlightPlayBtn').disabled = true;
+    $('spotlightImage').hidden = true;
+    $('spotlightArtPlaceholder').hidden = false;
+    return;
+  }
+  $('spotlightTitle').textContent = game.name || 'Featured experience';
+  $('spotlightDescription').textContent = game.description || ('By ' + (game.creator || 'the Roblox community') + '. Open this experience in the official Roblox app.');
+  $('spotlightPlayBtn').disabled = false;
+  $('spotlightPlayBtn').dataset.playId = String(game.placeId || game.id || '');
+  const src = safeImageUrl(game.iconUrl);
+  $('spotlightImage').src = src;
+  $('spotlightImage').hidden = !src;
+  const placeholder = document.querySelector('.spotlight-art-placeholder');
+  placeholder.hidden = Boolean(src);
+  $('spotlightBackdrop').style.backgroundImage = src
+    ? 'linear-gradient(90deg,#20191f 0%,#20191fe8 35%,#17171cc7 100%),url("' + src + '")'
+    : 'radial-gradient(ellipse at 70% 25%,#ff4f5924,transparent 55%),linear-gradient(110deg,#271a21,#16161b 80%)';
+  $('spotlightImage').onerror = function () {
+    this.hidden = true;
+    placeholder.hidden = false;
+  };
+}
+function renderGames() {
+  $('gamesSectionTitle').textContent = searchQuery ? 'Search results' : 'Popular right now';
+  setSpotlight(games.find(function (game) { return game.featured; }) || games[0]);
+  renderGrid('gamesGrid', games, isSearching ? 'Searching Roblox…' : String(games.length) + ' experiences');
+  if (!games.length) {
+    $('gamesGrid').innerHTML = '<div class="loading-grid"><strong>No matching experiences found.</strong><p>Try a different name, or clear your search to explore popular games.</p></div>';
+    $('loadMoreBtn').hidden = true;
+    $('gamesResultCount').textContent = '0 experiences';
+  }
+  $('clearSearchBtn').hidden = !searchQuery;
+  $('catalogSourceNote').textContent = searchQuery
+    ? 'Search results are fetched from Roblox discovery services.'
+    : 'Popular suggestions · Experience metadata and icons from Roblox services.';
+  rememberGames(games);
+}
+async function loadGames(query, options) {
+  const opts = options || {};
+  const clean = String(query || '').trim();
+  if (!opts.keepQuery) searchQuery = clean;
+  isSearching = true;
+  if (!opts.append) {
+    $('gamesGrid').innerHTML = '<div class="loading-grid"><span class="loading-spinner"></span><strong>' + (clean ? 'Searching Roblox…' : 'Finding popular experiences…') + '</strong><p>Getting game cards ready.</p></div>';
+    $('loadMoreBtn').hidden = true;
+  }
+  $('gamesResultCount').textContent = 'Loading…';
+  try {
+    const result = await api.listRobloxGames(clean);
+    const returned = Array.isArray(result && result.games) ? result.games : [];
+    if (opts.append) {
+      const existing = new Set(games.map(function (game) { return String(game.placeId); }));
+      games = games.concat(returned.filter(function (game) { return !existing.has(String(game.placeId)); }));
+    } else {
+      games = returned;
+      visibleCount = 12;
+    }
+    isSearching = false;
+    rememberGames(games);
+    renderGames();
+    if (result && result.source) $('catalogSourceNote').textContent = result.source + ' · Use Play to open the experience in Roblox.';
+  } catch (error) {
+    isSearching = false;
+    if (!opts.append) {
+      $('gamesGrid').innerHTML = '<div class="loading-grid"><strong>Could not load experiences.</strong><p>' + escapeHtml(error.message || 'Check your connection and try again.') + '</p><button class="button button-outline" id="retryGamesBtn">Try again</button></div>';
+      $('retryGamesBtn').addEventListener('click', function () { loadGames(searchQuery); });
+      $('gamesResultCount').textContent = 'Unavailable';
+    }
+    toast('Could not load games', error.message || 'Try again later.', true);
+  }
+}
+async function loadFavoriteGames() {
+  $('favoritesGrid').innerHTML = '<div class="loading-grid"><span class="loading-spinner"></span><strong>Loading favorites…</strong></div>';
+  $('favoritesEmpty').hidden = true;
+  try {
+    const result = await api.getRobloxFavoriteGames();
+    favoriteGames = (Array.isArray(result) ? result : []).map(function (game) {
+      const known = gameById.get(String(game.placeId));
+      return known ? Object.assign({}, game, { iconUrl: game.iconUrl || known.iconUrl, name: game.name || known.name }) : game;
+    });
+    rememberGames(favoriteGames);
+    if (!favoriteGames.length) {
+      $('favoritesGrid').innerHTML = '';
+      $('favoritesEmpty').hidden = false;
+    } else {
+      visibleCount = Math.max(12, favoriteGames.length);
+      renderGrid('favoritesGrid', favoriteGames);
+      $('favoritesEmpty').hidden = true;
+    }
+    $('favoritesCount').textContent = String(favorites.size);
+  } catch (error) {
+    $('favoritesGrid').innerHTML = '<div class="loading-grid"><strong>Could not load favorites.</strong><p>' + escapeHtml(error.message || 'Try again.') + '</p></div>';
+  }
+}
+async function toggleFavorite(placeId) {
+  const id = String(placeId || '');
+  if (!/^\d{1,24}$/.test(id)) return;
+  try {
+    const result = await api.toggleRobloxFavorite(id);
+    favorites = new Set((result.favorites || []).map(String));
+    $('favoritesCount').textContent = String(favorites.size);
+    renderGames();
+    if (activeView === 'favorites') await loadFavoriteGames();
+    toast(result.favorite ? 'Added to favorites' : 'Removed from favorites', (gameById.get(id) || {}).name || 'Your collection is saved on this PC.');
+  } catch (error) {
+    toast('Could not update favorites', error.message || 'Try again.', true);
+  }
+}
+async function launchGame(placeId) {
+  const id = String(placeId || '');
+  const game = gameById.get(id) || games.find(function (item) { return String(item.placeId) === id; });
+  if (!/^\d{1,24}$/.test(id)) {
+    toast('Cannot launch this experience', 'The selected game does not have a valid place ID.', true);
+    return;
+  }
+  try {
+    const result = await api.launchRobloxGame(id);
+    toast('Opening ' + ((game && game.name) || 'Roblox experience'), result.message || 'Handing this experience to the Roblox app.');
+  } catch (error) {
+    toast('Roblox did not open', (error.message || 'Could not launch the experience.') + ' Install or update the official Roblox app, then try again.', true);
+  }
+}
+function bindCardActions(nodeId) {
+  $(nodeId).addEventListener('click', function (event) {
+    const favoriteButton = event.target.closest('[data-favorite-id]');
+    if (favoriteButton) {
+      event.preventDefault();
+      toggleFavorite(favoriteButton.dataset.favoriteId);
+      return;
+    }
+    const playButton = event.target.closest('[data-play-id]');
+    if (playButton) {
+      event.preventDefault();
+      launchGame(playButton.dataset.playId);
+    }
+  });
+}
+function bindEvents() {
+  $('robloxSignInBtn').addEventListener('click', beginRobloxSignIn);
+  $('browseWithoutSignInBtn').addEventListener('click', function () {
+    switchToApp();
+    if (!games.length) loadGames('');
+  });
+  $('createRobloxAccountBtn').addEventListener('click', function () {
+    api.openRobloxSignup().catch(function (error) { toast('Could not open Roblox', error.message, true); });
+  });
+  $('toggleOauthSetupBtn').addEventListener('click', function () {
+    $('oauthSetupBody').hidden = !$('oauthSetupBody').hidden;
+    $('oauthSetupSummary').classList.toggle('expanded', !$('oauthSetupBody').hidden);
+  });
+  $('saveClientIdBtn').addEventListener('click', function () { saveClientId('oauthClientIdInput', 'authFeedback'); });
+  $('openOAuthDashboardBtn').addEventListener('click', function () {
+    api.openRobloxOAuthDashboard().catch(function (error) { setFeedback('authFeedback', error.message, true); });
+  });
+  $('copyRedirectBtn').addEventListener('click', function () { copyRedirectUri('redirectUriText', 'authFeedback'); });
+  $('topConnectBtn').addEventListener('click', function () {
+    if (!robloxState.configured) {
+      showSettings();
+      setFeedback('settingsFeedback', 'Add your public OAuth Client ID to connect your Roblox profile.');
+      return;
+    }
+    beginRobloxSignIn();
+  });
+  $('topAvatarBtn').addEventListener('click', showSettings);
+  $('sidebarAccountBtn').addEventListener('click', showSettings);
+  $('settingsBtn').addEventListener('click', showSettings);
+  $('settingsSignInBtn').addEventListener('click', beginRobloxSignIn);
+  $('settingsSignOutBtn').addEventListener('click', async function () {
+    try {
+      const result = await api.signOutRoblox();
+      robloxState = result.state || await api.robloxState();
+      renderProfile();
+      setFeedback('settingsFeedback', 'Roblox profile disconnected from JustPlay. The encrypted sign-in session was removed.');
+      toast('Roblox disconnected', 'You can keep browsing and launching games.');
+    } catch (error) { setFeedback('settingsFeedback', error.message || 'Could not disconnect Roblox.', true); }
+  });
+  $('saveSettingsClientIdBtn').addEventListener('click', function () { saveClientId('settingsClientIdInput', 'settingsFeedback'); });
+  $('settingsOAuthDashboardBtn').addEventListener('click', function () {
+    api.openRobloxOAuthDashboard().catch(function (error) { setFeedback('settingsFeedback', error.message, true); });
+  });
+  $('settingsCopyRedirectBtn').addEventListener('click', function () { copyRedirectUri('settingsRedirectUri', 'settingsFeedback'); });
+  $('closeSettingsBtn').addEventListener('click', closeSettings);
+  $('settingsDoneBtn').addEventListener('click', closeSettings);
+  $('settingsOpenRobloxBtn').addEventListener('click', function () {
+    api.openRobloxApp().then(function (result) { toast('Opening Roblox', result.message || 'Opening the official app.'); })
+      .catch(function (error) { toast('Could not open Roblox', error.message || 'Install the official Roblox app.', true); });
+  });
+  $('settingsRobloxWebsiteBtn').addEventListener('click', function () { api.openRobloxSignup(); });
+  $('openRobloxAppBtn').addEventListener('click', function () {
+    api.openRobloxApp().then(function (result) { toast('Opening Roblox', result.message || 'Opening the official app.'); })
+      .catch(function (error) { toast('Could not open Roblox', error.message || 'Install the official Roblox app.', true); });
+  });
+  $('openRobloxWebsiteBtn').addEventListener('click', function () { api.openRobloxSignup(); });
+  $('navDiscover').addEventListener('click', function () { navigate('discover'); });
+  $('navFavorites').addEventListener('click', function () { navigate('favorites'); });
+  $('backToDiscoverBtn').addEventListener('click', function () { navigate('discover'); });
+  $('favoritesDiscoverBtn').addEventListener('click', function () { navigate('discover'); });
+  $('spotlightExploreBtn').addEventListener('click', function () { $('gameSearchInput').focus(); document.querySelector('.games-toolbar').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('spotlightPlayBtn').addEventListener('click', function () { launchGame($('spotlightPlayBtn').dataset.playId); });
+  $('refreshGamesBtn').addEventListener('click', function () { loadGames(searchQuery); });
+  $('loadMoreBtn').addEventListener('click', function () { visibleCount += 12; renderGrid('gamesGrid', games, String(games.length) + ' experiences'); });
+  $('gameSearchInput').addEventListener('input', function (event) {
+    clearTimeout(searchTimer);
+    const value = event.target.value.trim();
+    $('clearSearchBtn').hidden = !value;
+    searchTimer = setTimeout(function () { loadGames(value); }, 450);
+  });
+  $('gameSearchInput').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      clearTimeout(searchTimer);
+      loadGames(event.target.value.trim());
+    }
+    if (event.key === 'Escape') {
+      event.target.value = '';
+      loadGames('');
+    }
+  });
+  $('clearSearchBtn').addEventListener('click', function () {
+    $('gameSearchInput').value = '';
+    loadGames('');
+    $('gameSearchInput').focus();
+  });
+  $('toastCloseBtn').addEventListener('click', function () { $('launchToast').classList.remove('visible'); });
+  $('settingsOverlay').addEventListener('click', function (event) { if (event.target === $('settingsOverlay')) closeSettings(); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeSettings();
+      $('launchToast').classList.remove('visible');
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key === '1' && !$('appScreen').hidden) navigate('discover');
+  });
+  bindCardActions('gamesGrid');
+  bindCardActions('favoritesGrid');
+}
+async function initialize() {
   bindEvents();
   try {
-    renderUpdateStatus(await api.getUpdateStatus());
-  } catch { /* Update checks are not available in a development launch. */ }
-  try {
-    appState = await api.getState();
-    renderHeader(); renderSettings();
-    refreshJavaRuntimes(false);
-    // Every app launch starts at the JustPlay account gate. A guest may continue without
-    // creating a local account; gameplay authentication remains separate.
-    $('setupOverlay').hidden = true;
-    $('localLoginOverlay').hidden = false;
-    if (!appState.setupComplete) previewDiskChoice();
-  } catch (error) { showToast(error.message || 'Could not read JustPlay settings.', 'error'); }
-  await refreshCatalog({ silent: true });
+    robloxState = await api.robloxState();
+    robloxState.redirectUri = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+    const result = await api.getRobloxFavorites();
+    favorites = new Set((Array.isArray(result) ? result : []).map(String));
+    $('redirectUriText').textContent = robloxState.redirectUri;
+    $('settingsRedirectUri').textContent = robloxState.redirectUri;
+    renderProfile();
+    if (robloxState.profile) switchToApp();
+  } catch (error) {
+    setFeedback('authFeedback', error.message || 'Could not initialize JustPlay.', true);
+    showAuthSetup(false);
+  }
+  await loadGames('');
+  if (!$('appScreen').hidden) await loadFavoriteGames();
 }
-
-init();
+initialize().catch(function (error) {
+  setFeedback('authFeedback', error.message || 'JustPlay could not start.', true);
+});
