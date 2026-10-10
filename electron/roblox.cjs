@@ -355,9 +355,10 @@ async function searchGames(query) {
   if (!clean) return popularGames();
   try {
     const url = new URL('https://apis.roblox.com/search-api/omni-search');
-    url.searchParams.set('SearchQuery', clean);
-    url.searchParams.set('SessionId', crypto.randomUUID());
-    url.searchParams.set('PageType', 'Games');
+    url.searchParams.set('searchQuery', clean);
+    url.searchParams.set('pageToken', '');
+    url.searchParams.set('sessionId', crypto.randomUUID());
+    url.searchParams.set('pageType', 'all');
     const result = await requestJson(url.toString(), { timeout: 18000 });
     const found = [];
     walkObjects(result, found);
