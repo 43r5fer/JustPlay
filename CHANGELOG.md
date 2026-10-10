@@ -1,5 +1,11 @@
 # JustPlay release notes
 
+## v0.3.1 — Roblox search compatibility
+
+- Updated experience search to use Roblox's current documented-by-example query parameter casing and `pageType=all` pattern for more reliable game results.
+- Retained curated popular-game fallbacks when Roblox search is unavailable or rate-limited.
+
+
 ## v0.3.0 — Roblox launcher rebuild
 
 - **New Roblox-focused desktop UI:** replaced the Minecraft launcher workflow with a discover page, search, featured experience, responsive game cards, and favorites.
