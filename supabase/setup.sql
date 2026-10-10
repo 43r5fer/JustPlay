@@ -358,11 +358,11 @@ grant select,insert,delete on public.flock_statuses to authenticated;
 grant select,insert on public.flock_status_views to authenticated;
 grant select,insert,delete on public.flock_message_reactions to authenticated;
 
-create policy flock_profiles_authenticated_read on public.flock_profiles for select to authenticated using ((select auth.uid()) is not null);
+create policy flock_profiles_related_read on public.flock_profiles for select to authenticated using (private.flock_can_view_profile(id));
 create policy flock_profiles_owner_update on public.flock_profiles for update to authenticated using (id=(select auth.uid())) with check (id=(select auth.uid()));
 
 create policy flock_friendships_participant_read on public.flock_friendships for select to authenticated using (requester_id=(select auth.uid()) or addressee_id=(select auth.uid()));
-create policy flock_friendships_request_create on public.flock_friendships for insert to authenticated with check (requester_id=(select auth.uid()) and requester_id<>addressee_id and status='pending');
+create policy flock_friendships_request_create on public.flock_friendships for insert to authenticated with check (requester_id=(select auth.uid()) and status='pending' and private.flock_can_send_friend_request(addressee_id));
 create policy flock_friendships_recipient_response on public.flock_friendships for update to authenticated using (addressee_id=(select auth.uid()) and status='pending') with check (addressee_id=(select auth.uid()) and status in ('accepted','declined','blocked'));
 create policy flock_friendships_requester_cancel on public.flock_friendships for delete to authenticated using (requester_id=(select auth.uid()) and status='pending');
 
