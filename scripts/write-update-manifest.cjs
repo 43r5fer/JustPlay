@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const file = path.join(root, 'dist', 'JustPlay.exe');
-if (!/^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$/.test(pkg.version || '')) throw new Error('Invalid package version.');
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pkg.version || '')) throw new Error('Invalid package version.');
 if (!fs.existsSync(file)) throw new Error('Build dist/JustPlay.exe before generating update metadata.');
 const bytes = fs.readFileSync(file);
 const sha512 = crypto.createHash('sha512').update(bytes).digest('base64');
