@@ -32,6 +32,7 @@ jobs:
         run: |
           mkdir -p site/app
           cp -R src/. site/app/
+          node scripts/patch-pwa-assets.mjs site/app
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
