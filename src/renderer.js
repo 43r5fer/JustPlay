@@ -178,7 +178,7 @@ function renderProfile() {
   $('friendCodeText').textContent = p ? p.friend_code : '----------';
   $('myAvatarFallback').textContent = safeInitial(displayName);
   const img = $('myAvatar');
-  const url = p && p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+  const url = p && p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
   img.hidden = !url;
   img.src = url || '';
   $('myAvatarFallback').hidden = Boolean(url);
@@ -194,6 +194,10 @@ async function getSignedUrl(path) {
   if (error) throw error;
   signedUrlCache.set(path, { url: data.signedUrl, expires: Date.now() + 50 * 60 * 1000 });
   return data.signedUrl;
+}
+function peekSignedUrl(path) {
+  const item = path ? signedUrlCache.get(path) : null;
+  return item && item.expires > Date.now() ? item.url : '';
 }
 async function uploadMedia(file, folder) {
   assertUser();
@@ -229,7 +233,7 @@ async function removeMedia(path) {
   signedUrlCache.delete(path);
 }
 function renderProfileAvatar(path, fallback, className) {
-  const url = path ? signedUrlCache.get(path) : '';
+  const url = path ? peekSignedUrl(path) : '';
   const img = url ? '<img alt="" src="' + escapeHtml(url) + '">' : '';
   return '<span class="' + (className || 'avatar') + '">' + img + (url ? '' : '<span class="avatar-initial">' + escapeHtml(fallback || 'F') + '</span>') + '</span>';
 }
@@ -279,14 +283,14 @@ function renderFriends() {
   if (friendRequests.length) {
     html += '<div class="side-section-caption">FRIEND REQUESTS · ' + friendRequests.length + '</div>';
     html += friendRequests.map(p => {
-      const url = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+      const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
       return '<div class="friend-item"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="friend-copy"><strong>' + escapeHtml(p.display_name) + '</strong><span>@' + escapeHtml(p.username) + '</span></span><span class="friend-inline-actions"><button class="mini-action accept" data-accept-friend="' + p.friendship_id + '" title="Accept request">✓</button><button class="mini-action" data-decline-friend="' + p.friendship_id + '" title="Decline request">×</button></span></div>';
     }).join('');
   }
   if (rows.length) {
     html += '<div class="side-section-caption">' + (currentSidebarTab === 'friends' ? 'YOUR FRIENDS' : 'FRIENDS') + ' · ' + rows.length + '</div>';
     html += rows.map(p => {
-      const url = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+      const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
       return '<button class="friend-item friend-open" data-open-friend="' + p.id + '"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="friend-copy"><strong>' + escapeHtml(p.display_name) + '</strong><span>@' + escapeHtml(p.username) + ' · code ' + escapeHtml(p.friend_code) + '</span></span><span class="friend-open-glyph">↗</span></button>';
     }).join('');
   }
@@ -362,7 +366,7 @@ async function refreshConversations() {
   const peerIds = Array.from(new Set(memberRows.map(x => x.user_id).filter(x => x !== user.id)));
   let peerProfiles = [];
   if (peerIds.length) {
-    const result = await db.from('flock_profiles').select('id,username,display_name,avatar_path').in('id', peerIds);
+    const result = await db.from('flock_profiles').select('id,username,display_name,avatar_path,friend_code').in('id', peerIds);
     if (result.error) throw result.error;
     peerProfiles = result.data || [];
   }
@@ -399,7 +403,7 @@ function renderConversations() {
   const rows = conversations.filter(c => !q || (c.title + ' ' + c.subtitle + ' ' + (c.latest ? c.latest.body : '')).toLowerCase().includes(q));
   $('conversationList').innerHTML = rows.length ? rows.map(c => {
     const p = c.peer;
-    const avatarUrl = p && p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+    const avatarUrl = p && p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
     const initial = safeInitial(c.title);
     let preview = c.latest ? (c.latest.deleted_at ? 'Message deleted' : c.latest.kind === 'text' ? c.latest.body : c.latest.kind === 'youtube' ? 'YouTube video' : c.latest.kind === 'voice' ? 'Voice message' : c.latest.kind === 'video_note' ? 'Video note' : c.latest.kind === 'image' ? 'Photo' : c.latest.kind === 'video' ? 'Video' : 'Attachment') : 'Start a conversation';
     if (c.latest && c.latest.sender_id === user.id) preview = 'You: ' + preview;
@@ -421,14 +425,14 @@ function renderFriends() {
   if (friendRequests.length) {
     html += '<div class="side-section-caption">FRIEND REQUESTS · ' + friendRequests.length + '</div>';
     html += friendRequests.map(p => {
-      const url = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+      const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
       return '<div class="friend-item"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="friend-copy"><strong>' + escapeHtml(p.display_name) + '</strong><span>@' + escapeHtml(p.username) + '</span></span><span class="friend-inline-actions"><button class="mini-action accept" data-accept-friend="' + p.friendship_id + '" title="Accept">✓</button><button class="mini-action" data-decline-friend="' + p.friendship_id + '" title="Decline">×</button></span></div>';
     }).join('');
   }
   if (rows.length) {
     html += '<div class="side-section-caption">YOUR FRIENDS · ' + rows.length + '</div>';
     html += rows.map(p => {
-      const url = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+      const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
       return '<button class="friend-item friend-open" data-open-friend="' + p.id + '"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="friend-copy"><strong>' + escapeHtml(p.display_name) + '</strong><span>@' + escapeHtml(p.username) + ' · ' + escapeHtml(p.friend_code) + '</span></span><span class="friend-open-glyph">↗</span></button>';
     }).join('');
   }
@@ -526,7 +530,7 @@ function messagePayloadMarkup(m) {
     const id = m.youtube_id || '';
     body = '<div class="message-youtube"><button class="youtube-thumb" data-youtube-open="' + escapeHtml(id) + '" title="Play YouTube video"><img loading="lazy" src="https://img.youtube.com/vi/' + escapeHtml(id) + '/hqdefault.jpg" alt=""><span class="youtube-play">▶</span></button><div class="youtube-caption">YouTube video shared in Flock<small>Opens YouTube in a new tab</small></div></div>' + (m.body ? '<div class="message-bubble">' + linkifyText(m.body) + '</div>' : '');
   } else if (m.media_path) {
-    const url = signedUrlCache.get(m.media_path);
+    const url = peekSignedUrl(m.media_path);
     const name = escapeHtml(m.media_name || 'Attachment');
     if (!url) body = '<div class="message-bubble">Media is not available right now.</div>';
     else if (m.kind === 'image') body = '<a class="message-media" href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + escapeHtml(url) + '" alt="' + name + '"></a>' + (m.body ? '<div class="message-bubble">' + linkifyText(m.body) + '</div>' : '');
@@ -550,7 +554,7 @@ function messagePayloadMarkup(m) {
   const edited = m.edited_at ? '<span class="message-edited">edited</span>' : '';
   const senderName = activeConversation && activeConversation.kind === 'group' && !myMessage ? '<span class="message-sender-name">' + escapeHtml(m.sender ? m.sender.display_name : 'Flock friend') + '</span>' : '';
   const avatarPath = !myMessage && m.sender ? m.sender.avatar_path : null;
-  const avatarUrl = avatarPath ? signedUrlCache.get(avatarPath) : '';
+  const avatarUrl = avatarPath ? peekSignedUrl(avatarPath) : '';
   const avatar = !myMessage && activeConversation && activeConversation.kind === 'group'
     ? '<span class="message-sender-avatar">' + (avatarUrl ? '<img src="' + escapeHtml(avatarUrl) + '" alt="">' : escapeHtml(safeInitial(m.sender && m.sender.display_name))) + '</span>' : '';
   const actions = '<div class="message-actions">' + (canEdit ? '<button data-edit-message="' + m.id + '" title="Edit message">✎</button>' : '') +
@@ -938,7 +942,7 @@ async function showGroupDetails() {
   const canAdmin = ['owner','admin'].includes(activeConversation.myRole);
   const body = '<label for="editGroupName">GROUP NAME</label><div class="modal-inline-row"><input id="editGroupName" class="input-field" maxlength="80" value="' + escapeHtml(activeConversation.name || '') + '"><button id="saveGroupNameBtn" class="button button-soft" type="button">Rename</button></div><label>MEMBERS · ' + members.length + '</label><div class="modal-profile-list">' + members.map(m => {
     const p = map.get(m.user_id) || { display_name: 'Flock friend', username: 'friend' };
-    const url = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+    const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
     const roleOptions = ['admin','co_admin','member'].map(role => '<option value="' + role + '" ' + (m.role === role ? 'selected' : '') + '>' + (role === 'co_admin' ? 'Co-admin' : role === 'admin' ? 'Admin' : 'Member') + '</option>').join('');
     return '<div class="modal-member-row"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="modal-member-copy"><strong>' + escapeHtml(p.display_name) + (m.user_id === user.id ? ' (you)' : '') + '</strong><small>@' + escapeHtml(p.username) + '</small></span>' + (m.role === 'owner' ? '<span class="role-pill owner">Owner</span>' : canAdmin ? '<select class="form-select group-role-select" data-member-role="' + m.user_id + '">' + roleOptions + '</select>' : '<span class="role-pill">' + escapeHtml(m.role.replace('_',' ')) + '</span>') + '</div>';
   }).join('') + '</div><p class="field-hint">Owners can manage admins and co-admins. Admins can manage co-admins and members. Co-admins can help add people to the group.</p>';
@@ -1021,7 +1025,7 @@ async function openStatuses() {
   const other = statuses.filter(s => s.user_id !== user.id);
   const makeRow = s => {
     const p = s.author || profile;
-    const av = p.avatar_path ? signedUrlCache.get(p.avatar_path) : '';
+    const av = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
     return '<button class="moment-row" data-view-status="' + s.id + '"><span class="moment-thumb">' + (av ? '<img src="' + escapeHtml(av) + '" alt="">' : escapeHtml(s.kind === 'text' ? '✦' : s.kind === 'video' ? '▷' : '◌')) + '</span><span class="moment-row-copy"><strong>' + escapeHtml(p.display_name || 'A friend') + (s.user_id === user.id ? ' · yours' : '') + '</strong><span>' + escapeHtml(s.body || (s.kind === 'video' ? 'Video moment' : s.kind === 'image' ? 'Photo moment' : 'A moment')) + ' · ' + escapeHtml(fmtTime(s.created_at)) + '</span></span></button>';
   };
   showModal({
@@ -1108,8 +1112,12 @@ async function viewStatus(index) {
         toast('Moment deleted', '');
         await loadStatuses();
       } else {
-        const { error } = await db.from('flock_status_views').upsert({ status_id: s.id, viewer_id: user.id }, { onConflict: 'status_id,viewer_id' });
-        if (error) throw error;
+        const { data: alreadyViewed, error: viewCheckError } = await db.from('flock_status_views').select('status_id').eq('status_id', s.id).eq('viewer_id', user.id).maybeSingle();
+        if (viewCheckError) throw viewCheckError;
+        if (!alreadyViewed) {
+          const { error } = await db.from('flock_status_views').insert({ status_id: s.id, viewer_id: user.id });
+          if (error && error.code !== '23505') throw error;
+        }
         if (openedStatusIndex + 1 < statuses.length) await viewStatus(openedStatusIndex + 1);
         else { closeModal(); toast('You are all caught up', ''); }
       }
@@ -1278,7 +1286,6 @@ function goBackToChats() {
 function updateMobileView(view) {
   document.querySelectorAll('[data-mobile-view]').forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === view));
   if (view === 'friends') {
-    $('sidebarTabs').querySelectorAll('[data-sidebar-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.sidebarTab === 'friends'));
     setSidebarTab('friends');
     goBackToChats();
   } else if (view === 'chats') {
@@ -1411,7 +1418,7 @@ function bindEvents() {
   $('signOutBtn').addEventListener('click', () => signOut().catch(err => toast('Could not sign out', err.message, true)));
   $('mobileBackBtn').addEventListener('click', goBackToChats);
   $('chatHeaderAvatarBtn').addEventListener('click', openConversationDetails);
-  $('chatDetailsBtn').addEventListener('click', () => openConversationDetails().catch(err => toast('Could not load details', err.message, true)));
+  $('chatDetailsBtn').addEventListener('click', () => Promise.resolve(openConversationDetails()).catch(err => toast('Could not load details', err.message, true)));
   $('addPeopleBtn').addEventListener('click', () => addPeopleToGroup().catch(err => toast('Could not add people', err.message, true)));
   $('chatMoreBtn').addEventListener('click', () => showModal({
     kicker:'FLOCK / CONVERSATION', title:'A few chat options', description:'Your conversation, your controls.',
