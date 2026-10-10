@@ -19,6 +19,8 @@ const OPTIFINE_HOME = 'https://optifine.net/downloads';
 let mainWindow;
 let microsoftSession = null; // Active session stays in memory; the optional cached session is OS-encrypted.
 let cachedMinecraftSession = null;
+let javaRuntimeCache = null;
+let javaRuntimeCacheAt = 0;
 let catalogCache = null;
 let catalogCacheAt = 0;
 let activeLauncher = null;
@@ -612,7 +614,8 @@ function javaVersionForExecutable(executable) {
   }
 }
 
-async function detectJavaRuntimes() {
+async function detectJavaRuntimes(force = false) {
+  if (!force && javaRuntimeCache && Date.now() - javaRuntimeCacheAt < 60 * 1000) return javaRuntimeCache.map(item => ({ ...item }));
   const seen = new Set();
   const candidates = [];
   const addCandidate = file => {
@@ -680,24 +683,26 @@ async function detectJavaRuntimes() {
       results.push({ path: launchPath, major, label: 'Java ' + major + ' — ' + launchPath });
     }
   }
-  return results.sort((a, b) => a.major - b.major || a.path.localeCompare(b.path));
+  javaRuntimeCache = results.sort((a, b) => a.major - b.major || a.path.localeCompare(b.path));
+  javaRuntimeCacheAt = Date.now();
+  return javaRuntimeCache.map(item => ({ ...item }));
 }
 
 async function chooseJavaExecutable(state, mcVersion) {
   const runtimes = await detectJavaRuntimes();
   const required = minimumJavaMajor(mcVersion);
   const configured = state.javaPath && runtimes.find(item => item.path === state.javaPath);
-  let chosen = configured && configured.major >= required ? configured : null;
+  let chosen = configured && (configured.major === required || (required >= 16 && configured.major > required)) ? configured : null;
   if (!chosen) {
     chosen = runtimes.find(item => item.major === required)
-      || runtimes.find(item => item.major >= required)
+      || (required >= 16 ? runtimes.find(item => item.major > required) : runtimes.find(item => item.major > required && item.major <= 11))
       || null;
   }
   if (!chosen) {
     const versions = runtimes.map(item => item.major).filter((major, index, all) => all.indexOf(major) === index).join(', ');
     throw new Error('Minecraft ' + mcVersion + ' requires Java ' + required + ' or newer. JustPlay could not find a compatible Java runtime' + (versions ? ' (found: ' + versions + ')' : '') + '. Install a matching runtime or use Settings → Java Runtime → Auto-detect.');
   }
-  if (!state.javaPath || !runtimes.some(item => item.path === state.javaPath)) {
+  if (state.javaPath !== chosen.path) {
     state.javaPath = chosen.path;
     await writeSettings(state);
   }
@@ -1035,8 +1040,8 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // The Microsoft access token is intentionally memory-only. Forget the cached display name
-  // at startup so the UI does not falsely report a signed-in session after a restart.
+  // Clear only live UI identities on restart. A recent successfully verified Minecraft
+  // session, if available, is stored separately with OS-provided encryption.
   const savedState = await readSettings();
   if (savedState.accountName || savedState.localAccountName) {
     savedState.accountName = '';
@@ -1051,11 +1056,11 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 
 ipcMain.handle('app:state', async () => publicState(await readSettings()));
 ipcMain.handle('app:java-detect', async () => {
-  const runtimes = await detectJavaRuntimes();
+  const runtimes = await detectJavaRuntimes(true);
   const state = await readSettings();
   const configured = state.javaPath && runtimes.find(item => item.path === state.javaPath);
   const best = configured || runtimes.find(item => item.major === 21) || runtimes.find(item => item.major === 17) || runtimes.find(item => item.major === 8) || runtimes[runtimes.length - 1] || null;
-  if (!state.javaPath && best) {
+  if (best && state.javaPath !== best.path) {
     state.javaPath = best.path;
     await writeSettings(state);
   }
@@ -1069,7 +1074,7 @@ ipcMain.handle('app:java-select', async (_event, selectedPath) => {
     await writeSettings(state);
     return { ok: true, state: publicState(state) };
   }
-  const runtimes = await detectJavaRuntimes();
+  const runtimes = await detectJavaRuntimes(true);
   const selected = runtimes.find(item => item.path === value);
   if (!selected) throw new Error('Choose a Java runtime JustPlay detected on this computer. Try Auto-detect first.');
   const state = await readSettings();
