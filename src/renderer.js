@@ -13,6 +13,8 @@ let searchTimer = null;
 let toastTimer = null;
 let isSearching = false;
 let activeView = 'discover';
+let currentUpdateState = { status: 'idle', currentVersion: '0.3.1' };
+let dismissedUpdateVersion = '';
 
 function escapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -40,6 +42,61 @@ function toast(title, message, isError) {
   $('launchToast').classList.add('visible');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { $('launchToast').classList.remove('visible'); }, 5200);
+}
+function renderUpdateStatus(update) {
+  if (!update || typeof update !== 'object') return;
+  currentUpdateState = update;
+  const version = String(update.version || '');
+  if (dismissedUpdateVersion && version && dismissedUpdateVersion === version && update.status !== 'downloaded') {
+    $('updateBanner').hidden = true;
+    return;
+  }
+  const show = ['available', 'downloading', 'downloaded', 'error'].includes(update.status);
+  $('updateBanner').hidden = !show;
+  if (!show) return;
+  if (update.status === 'available') {
+    $('updateTitle').textContent = 'JustPlay ' + (version || 'update') + ' is available';
+    $('updatePrimaryBtn').textContent = 'Download update';
+    $('updatePrimaryBtn').disabled = false;
+    $('updateDismissBtn').hidden = false;
+  } else if (update.status === 'downloading') {
+    $('updateTitle').textContent = 'Downloading JustPlay update';
+    $('updatePrimaryBtn').textContent = 'Downloading… ' + Math.round(Number(update.percent) || 0) + '%';
+    $('updatePrimaryBtn').disabled = true;
+    $('updateDismissBtn').hidden = false;
+  } else if (update.status === 'downloaded') {
+    $('updateTitle').textContent = 'Update ready to install';
+    $('updatePrimaryBtn').textContent = 'Restart to update';
+    $('updatePrimaryBtn').disabled = false;
+    $('updateDismissBtn').hidden = true;
+  } else {
+    $('updateTitle').textContent = 'Update check failed';
+    $('updatePrimaryBtn').textContent = 'Try again';
+    $('updatePrimaryBtn').disabled = false;
+    $('updateDismissBtn').hidden = false;
+  }
+  $('updateMessage').textContent = update.message || 'A JustPlay update is available.';
+}
+async function handleUpdateAction() {
+  const button = $('updatePrimaryBtn');
+  button.disabled = true;
+  try {
+    if (currentUpdateState.status === 'downloaded') {
+      await api.installUpdate();
+    } else if (currentUpdateState.status === 'available') {
+      await api.downloadUpdate();
+      renderUpdateStatus(await api.getUpdateStatus());
+    } else {
+      renderUpdateStatus(await api.checkForUpdates());
+    }
+  } catch (error) {
+    toast('JustPlay update failed', error.message || 'Check your connection and try again.', true);
+    renderUpdateStatus({ status: 'error', message: error.message || 'Could not update JustPlay.' });
+  } finally {
+    if (!$('updateBanner').hidden && currentUpdateState.status !== 'downloading' && currentUpdateState.status !== 'downloaded') {
+      button.disabled = false;
+    }
+  }
 }
 function setFeedback(id, message, isError) {
   const node = $(id);
@@ -490,6 +547,12 @@ function bindEvents() {
     $('gameSearchInput').focus();
   });
   $('toastCloseBtn').addEventListener('click', function () { $('launchToast').classList.remove('visible'); });
+  $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
+  $('updateDismissBtn').addEventListener('click', function () {
+    dismissedUpdateVersion = String(currentUpdateState.version || '');
+    $('updateBanner').hidden = true;
+  });
+  api.onUpdateStatus(renderUpdateStatus);
   $('settingsOverlay').addEventListener('click', function (event) { if (event.target === $('settingsOverlay')) closeSettings(); });
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
@@ -503,6 +566,7 @@ function bindEvents() {
 }
 async function initialize() {
   bindEvents();
+  try { renderUpdateStatus(await api.getUpdateStatus()); } catch {}
   try {
     robloxState = await api.robloxState();
     robloxState.redirectUri = robloxState.redirectUri || 'http://localhost:53682/callback';
