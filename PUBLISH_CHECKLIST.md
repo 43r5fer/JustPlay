@@ -7,10 +7,11 @@
 - [x] Windows installer built by GitHub Actions
 - [x] Public release `v0.1.0` published with `JustPlay.exe`
 - [x] Public hotfix release `v0.1.1` published with improved Microsoft auth diagnostics
-- [x] Release `v0.2.0` published with the new updater, release notes and local launcher accounts
-- [x] Windows build and JavaScript syntax checks passed for `v0.2.0`
+- [x] Release `v0.2.0` published with the in-app updater and local launcher accounts
+- [x] Release `v0.2.1` published with the dedicated JustPlay login screen and guest mode
+- [x] Windows build and JavaScript syntax checks passed for `v0.2.1`
 - [x] Release includes `JustPlay.exe` and `latest.yml` update metadata
-- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once
+- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0 can update to v0.2.1 in-app
 - [x] Release download URL verified in GitHub release metadata
 
 ## One required repository setting for the website
@@ -23,7 +24,7 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 
 ## Downloads
 - Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.0>
+- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.1>
 - Changelog: <https://github.com/43r5fer/JustPlay/blob/main/CHANGELOG.md>
 - Public repository: <https://github.com/43r5fer/JustPlay>
 
