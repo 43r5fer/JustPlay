@@ -1,10 +1,11 @@
-name: Publish JustPlay website to GitHub Pages
+name: Publish Flock web app to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
       - "site/**"
+      - "src/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -26,6 +27,11 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Assemble the browser app alongside the landing page
+        run: |
+          mkdir -p site/app
+          cp -R src/. site/app/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
