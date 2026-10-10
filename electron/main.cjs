@@ -384,6 +384,7 @@ async function writeAuthDiagnostic(stage, error) {
     errorName: scrubAuthDiagnostic(error && typeof error.name === 'string' ? error.name : (safe && safe.name) || 'Error'),
     errorCode: scrubAuthDiagnostic(error && (error.errorCode || (typeof error.code === 'string' && /^error\./i.test(error.code) ? error.code : '')) ? (error.errorCode || error.code) : (safe && (safe.errorCode || safe.code)) || ''),
     message: authErrorText(error),
+    details: safe,
   };
   try {
     await fsp.mkdir(path.dirname(logPath), { recursive: true });
