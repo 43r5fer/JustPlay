@@ -1,13 +1,13 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const os = require('node:os');
 const https = require('node:https');
 const crypto = require('node:crypto');
-const { execFileSync, spawn } = require('node:child_process');
+const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const { Client } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
@@ -17,14 +17,17 @@ const FORGE_METADATA = 'https://maven.minecraftforge.net/net/minecraftforge/forg
 const FORGE_HOME = 'https://files.minecraftforge.net/';
 const OPTIFINE_HOME = 'https://optifine.net/downloads';
 let mainWindow;
-let microsoftSession = null; // Tokens stay in memory; no Microsoft password or refresh token is written to disk.
+let microsoftSession = null; // Active session stays in memory; the optional cached session is OS-encrypted.
+let cachedMinecraftSession = null;
 let catalogCache = null;
 let catalogCacheAt = 0;
 let activeLauncher = null;
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
-const defaults = () => ({ setupComplete: false, displayName: '', rootPath: '', accountName: '', localAccountName: '', maxRam: '4G', minRam: '1G', installedProfiles: [] });
+const defaults = () => ({ setupComplete: false, displayName: '', rootPath: '', accountName: '', localAccountName: '', javaPath: '', minecraftSkin: null, maxRam: '4G', minRam: '1G', installedProfiles: [] });
 const localAccountsFile = () => path.join(app.getPath('userData'), 'accounts.json');
+const cachedMinecraftSessionFile = () => path.join(app.getPath('userData'), 'minecraft-session.bin');
+const CACHED_SESSION_MAX_AGE_MS = 20 * 60 * 60 * 1000;
 
 let updateState = { status: 'idle', currentVersion: app.getVersion() };
 
@@ -242,6 +245,11 @@ function publicState(state) {
     rootPath: state.rootPath || '',
     accountName: state.accountName || '',
     localAccountName: state.localAccountName || '',
+    javaPath: state.javaPath || '',
+    minecraftSkin: state.minecraftSkin && typeof state.minecraftSkin === 'object' ? state.minecraftSkin : null,
+    cachedSessionAvailable: Boolean(getValidCachedMinecraftSession()),
+    cachedMinecraftAccountName: getValidCachedMinecraftSession()?.accountName || '',
+    cachedSessionExpiresAt: getValidCachedMinecraftSession() ? new Date(Date.parse(getValidCachedMinecraftSession().signedInAt) + CACHED_SESSION_MAX_AGE_MS).toISOString() : '',
     maxRam: state.maxRam || '4G',
     minRam: state.minRam || '1G',
     storageDrive: state.storageDrive || '',
@@ -559,9 +567,10 @@ async function signInMicrosoft() {
     if (!session || typeof session !== 'object') throw new Error('Minecraft authentication returned an empty launcher session.');
     microsoftSession = session;
     const state = await readSettings();
-    state.accountName = minecraft.profile && minecraft.profile.name ? minecraft.profile.name : 'Microsoft account';
+    state.accountName = minecraft.profile && minecraft.profile.name ? minecraft.profile.name : (session.name || 'Microsoft account');
     await writeSettings(state);
-    return { ok: true, accountName: state.accountName };
+    const cachedForOffline = await persistCachedMinecraftSession(session, state.accountName).catch(() => false);
+    return { ok: true, accountName: state.accountName, cachedSessionAvailable: cachedForOffline };
   } catch (error) {
     microsoftSession = null;
     const logPath = await writeAuthDiagnostic(stage, error);
@@ -569,10 +578,214 @@ async function signInMicrosoft() {
   }
 }
 
-function findJavaExecutable() {
-  const candidates = process.platform === 'win32' ? ['java.exe'] : ['java'];
-  return candidates[0];
+function minimumJavaMajor(mcVersion) {
+  const match = String(mcVersion || '').match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
+  if (!match) return 17;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3] || 0);
+  if (major > 1 || (major === 1 && minor >= 21)) return 21;
+  if (major === 1 && minor === 20 && patch >= 5) return 21;
+  if (major === 1 && minor >= 18) return 17;
+  if (major === 1 && minor === 17) return 16;
+  return 8;
 }
+
+function executableCandidatesFromHome(home) {
+  if (!home || typeof home !== 'string') return [];
+  const root = home.replace(/^["']|["']$/g, '').trim();
+  const names = process.platform === 'win32' ? ['java.exe', 'javaw.exe'] : ['java'];
+  return [
+    ...names.map(name => path.join(root, 'bin', name)),
+    ...names.map(name => path.join(root, name)),
+  ];
+}
+
+function javaVersionForExecutable(executable) {
+  try {
+    const result = spawnSync(executable, ['-version'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+    const output = (result.stdout || '') + '\n' + (result.stderr || '');
+    const match = output.match(/version\s+["'](?:1\.)?(\d+)/i) || output.match(/\b(?:openjdk|java)\s+(?:version\s+)?["']?(?:1\.)?(\d+)/i);
+    return match ? Number(match[1]) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function detectJavaRuntimes() {
+  const seen = new Set();
+  const candidates = [];
+  const addCandidate = file => {
+    if (!file || typeof file !== 'string') return;
+    const absolute = path.resolve(file);
+    const key = process.platform === 'win32' ? absolute.toLowerCase() : absolute;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push(absolute);
+  };
+  const addHome = home => {
+    for (const candidate of executableCandidatesFromHome(home)) addCandidate(candidate);
+  };
+
+  addHome(process.env.JAVA_HOME);
+  for (const folder of String(process.env.PATH || '').split(path.delimiter).filter(Boolean)) {
+    const root = folder.replace(/^["']|["']$/g, '');
+    addCandidate(path.join(root, process.platform === 'win32' ? 'java.exe' : 'java'));
+    if (process.platform === 'win32') addCandidate(path.join(root, 'javaw.exe'));
+  }
+
+  const env = process.env;
+  const roots = [
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Java'),
+    env['ProgramFiles(x86)'] && path.join(env['ProgramFiles(x86)'], 'Java'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Eclipse Adoptium'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Microsoft'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Amazon Corretto'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Zulu'),
+    env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', 'Eclipse Adoptium'),
+    env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', 'Microsoft'),
+    env.APPDATA && path.join(env.APPDATA, '.minecraft', 'runtime'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Minecraft Launcher', 'runtime'),
+    env['ProgramFiles(x86)'] && path.join(env['ProgramFiles(x86)'], 'Minecraft Launcher', 'runtime'),
+  ].filter(Boolean);
+
+  async function walk(root, depth, budget) {
+    if (depth < 0 || budget.count <= 0) return;
+    let entries;
+    try { entries = await fsp.readdir(root, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries.slice(0, 250)) {
+      if (budget.count-- <= 0) return;
+      const child = path.join(root, entry.name);
+      if (entry.isFile() && /^(java|javaw)(\.exe)?$/i.test(entry.name)) addCandidate(child);
+      else if (entry.isDirectory() && depth > 0) {
+        if (depth >= 4 || /(java|jdk|jre|runtime|temurin|adoptium|corretto|zulu|microsoft)/i.test(entry.name)) {
+          await walk(child, depth - 1, budget);
+        }
+      }
+    }
+  }
+
+  for (const root of roots) await walk(root, root.toLowerCase().includes('runtime') ? 7 : 4, { count: 1200 });
+
+  const results = [];
+  for (const candidate of candidates) {
+    let stat;
+    try { stat = await fsp.stat(candidate); } catch { continue; }
+    if (!stat.isFile()) continue;
+    const major = javaVersionForExecutable(candidate);
+    if (!major) continue;
+    const twin = process.platform === 'win32' ? candidate.replace(/javaw\.exe$/i, 'java.exe') : candidate;
+    const launchPath = twin !== candidate && fs.existsSync(twin) ? twin : candidate;
+    if (!results.some(item => (process.platform === 'win32' ? item.path.toLowerCase() : item.path) === (process.platform === 'win32' ? launchPath.toLowerCase() : launchPath))) {
+      results.push({ path: launchPath, major, label: 'Java ' + major + ' — ' + launchPath });
+    }
+  }
+  return results.sort((a, b) => a.major - b.major || a.path.localeCompare(b.path));
+}
+
+async function chooseJavaExecutable(state, mcVersion) {
+  const runtimes = await detectJavaRuntimes();
+  const required = minimumJavaMajor(mcVersion);
+  const configured = state.javaPath && runtimes.find(item => item.path === state.javaPath);
+  let chosen = configured && configured.major >= required ? configured : null;
+  if (!chosen) {
+    chosen = runtimes.find(item => item.major === required)
+      || runtimes.find(item => item.major >= required)
+      || null;
+  }
+  if (!chosen) {
+    const versions = runtimes.map(item => item.major).filter((major, index, all) => all.indexOf(major) === index).join(', ');
+    throw new Error('Minecraft ' + mcVersion + ' requires Java ' + required + ' or newer. JustPlay could not find a compatible Java runtime' + (versions ? ' (found: ' + versions + ')' : '') + '. Install a matching runtime or use Settings → Java Runtime → Auto-detect.');
+  }
+  if (!state.javaPath || !runtimes.some(item => item.path === state.javaPath)) {
+    state.javaPath = chosen.path;
+    await writeSettings(state);
+  }
+  return chosen.path;
+}
+
+async function persistCachedMinecraftSession(session, accountName) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    cachedMinecraftSession = null;
+    return false;
+  }
+  if (!session || typeof session.access_token !== 'string' || !session.access_token) return false;
+  const record = { schema: 1, session, accountName: String(accountName || session.name || 'Minecraft player'), signedInAt: new Date().toISOString() };
+  const encrypted = safeStorage.encryptString(JSON.stringify(record));
+  const file = cachedMinecraftSessionFile();
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  const temporary = file + '.tmp';
+  await fsp.writeFile(temporary, encrypted, { mode: 0o600 });
+  await fsp.rename(temporary, file);
+  cachedMinecraftSession = record;
+  return true;
+}
+
+function getValidCachedMinecraftSession() {
+  const record = cachedMinecraftSession;
+  if (!record || record.schema !== 1 || !record.session || typeof record.session.access_token !== 'string') return null;
+  const signedInAt = Date.parse(record.signedInAt);
+  if (!Number.isFinite(signedInAt) || Date.now() < signedInAt || Date.now() - signedInAt > CACHED_SESSION_MAX_AGE_MS) return null;
+  return record;
+}
+
+async function loadCachedMinecraftSession() {
+  cachedMinecraftSession = null;
+  if (!safeStorage.isEncryptionAvailable()) return;
+  try {
+    const encrypted = await fsp.readFile(cachedMinecraftSessionFile());
+    const parsed = JSON.parse(safeStorage.decryptString(encrypted));
+    if (parsed && parsed.schema === 1 && parsed.session && typeof parsed.session.access_token === 'string') {
+      cachedMinecraftSession = parsed;
+      if (!getValidCachedMinecraftSession()) cachedMinecraftSession = null;
+    }
+  } catch {
+    cachedMinecraftSession = null;
+  }
+}
+
+async function clearCachedMinecraftSession() {
+  cachedMinecraftSession = null;
+  try { await fsp.unlink(cachedMinecraftSessionFile()); } catch (error) {
+    if (error && error.code !== 'ENOENT') throw error;
+  }
+}
+
+async function syncMinecraftSkin() {
+  const cached = getValidCachedMinecraftSession();
+  const session = microsoftSession || (cached && cached.session);
+  if (!session || typeof session.access_token !== 'string' || !session.access_token) {
+    throw new Error('Sign in with Microsoft and complete Minecraft Java profile verification before syncing your skin.');
+  }
+  const response = await fetch('https://api.minecraftservices.com/minecraft/profile', {
+    headers: { Authorization: 'Bearer ' + session.access_token, Accept: 'application/json' },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Minecraft profile access expired or was denied. Sign in with Microsoft again, then retry.');
+  }
+  if (!response.ok) throw new Error('Minecraft profile service returned HTTP ' + response.status + '. Check your connection and try again.');
+  const profile = await response.json();
+  if (!profile || typeof profile.id !== 'string' || typeof profile.name !== 'string') {
+    throw new Error('The signed-in account did not return a compatible Minecraft Java profile.');
+  }
+  const skins = Array.isArray(profile.skins) ? profile.skins : [];
+  const active = skins.find(skin => String(skin.state || '').toLowerCase() === 'active') || skins[0] || null;
+  if (!active || typeof active.url !== 'string') {
+    throw new Error('No active skin was returned for this Minecraft profile.');
+  }
+  let textureUrl;
+  try { textureUrl = new URL(active.url); } catch { throw new Error('Minecraft returned an invalid skin URL.'); }
+  if (textureUrl.protocol !== 'https:' || textureUrl.hostname !== 'textures.minecraft.net') {
+    throw new Error('The skin URL was not on the official Minecraft texture host.');
+  }
+  const result = { uuid: profile.id, playerName: profile.name, variant: String(active.variant || 'CLASSIC').toUpperCase(), textureUrl: textureUrl.toString(), syncedAt: new Date().toISOString() };
+  const state = await readSettings();
+  state.minecraftSkin = result;
+  await writeSettings(state);
+  return { ok: true, skin: result, state: publicState(state) };
+}
+
 
 async function downloadForgeInstaller(fullVersion) {
   const match = String(fullVersion).match(/^(\d+(?:\.\d+){1,2})-([A-Za-z0-9.+_-]+)$/);
@@ -591,13 +804,31 @@ async function downloadForgeInstaller(fullVersion) {
   return { file, mcVersion: match[1], loaderVersion: match[2] };
 }
 
-async function launchMinecraft(entry) {
-  if (!microsoftSession) throw new Error('Sign in with Microsoft before playing. JustPlay never asks you to enter your Microsoft password inside its own form.');
+async function launchMinecraft(entry, mode = 'online') {
+  const launchMode = mode === 'cached' ? 'cached' : 'online';
+  const cached = launchMode === 'cached' ? getValidCachedMinecraftSession() : null;
+  const authorization = launchMode === 'cached' ? cached && cached.session : microsoftSession;
+  if (!authorization) {
+    if (launchMode === 'cached') throw new Error('No recent, successfully authenticated Minecraft session is available. Sign in with Microsoft while online first.');
+    throw new Error('Sign in with Microsoft before playing. A JustPlay account is not Minecraft authentication.');
+  }
   const state = await readSettings();
   if (!state.setupComplete || !state.rootPath) throw new Error('Set up JustPlay folders first.');
   const kind = String(entry.kind || 'vanilla');
   const mcVersion = safeSegment(entry.mcVersion || entry.id);
   const instanceRoot = instanceRootFor(state, mcVersion);
+  if (launchMode === 'cached') {
+    const installed = await scanInstalledProfiles(state);
+    const isVanillaInstalled = installed.vanillaInstalled.includes(mcVersion + '|' + String(entry.id));
+    const isCustomInstalled = installed.profiles.some(profile => profile.id === String(entry.id) && profile.instanceRoot === instanceRoot);
+    const isForgeInstalled = kind === 'forge' && installed.profiles.some(profile => profile.kind === 'installed-forge' && profile.mcVersion === mcVersion && (profile.id.includes(String(entry.loaderVersion || '')) || profile.id === String(entry.id)));
+    if (!isVanillaInstalled && !isCustomInstalled && !isForgeInstalled) {
+      throw new Error('Saved-session play is only available for a Minecraft version already installed through JustPlay. Connect to the internet and launch it normally first.');
+    }
+    if (kind === 'forge' && !isForgeInstalled && !isCustomInstalled) {
+      throw new Error('Saved-session mode cannot install a new Forge profile. Install it online first.');
+    }
+  }
   await fsp.mkdir(instanceRoot, { recursive: true });
   await fsp.mkdir(path.join(instanceRoot, 'mods'), { recursive: true });
   await fsp.mkdir(path.join(instanceRoot, 'resourcepacks'), { recursive: true });
@@ -607,6 +838,7 @@ async function launchMinecraft(entry) {
     return { ok: true, external: true, message: 'OptiFine opens on its official downloads page. Install the downloaded profile into the matching JustPlay game folder, then select it under Installed.' };
   }
 
+  const javaPath = await chooseJavaExecutable(state, mcVersion);
   const launcher = new Client();
   activeLauncher = launcher;
   launcher.on('debug', line => sendStatus({ state: 'log', message: String(line).slice(0, 240) }));
@@ -645,11 +877,11 @@ async function launchMinecraft(entry) {
   sendStatus({ state: 'installing', progress: 1, message: `Preparing Minecraft ${gameVersionId}…` });
   try {
     const child = await launcher.launch({
-      authorization: microsoftSession,
+      authorization,
       root: instanceRoot,
       version: versionOptions,
       memory: { max: state.maxRam || '4G', min: state.minRam || '1G' },
-      javaPath: findJavaExecutable(),
+      javaPath,
     });
     const key = `${mcVersion}|${gameVersionId}`;
     state.installedProfiles = Array.isArray(state.installedProfiles) ? state.installedProfiles : [];
@@ -811,12 +1043,41 @@ app.whenReady().then(async () => {
     savedState.localAccountName = '';
     await writeSettings(savedState);
   }
+  await loadCachedMinecraftSession();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 ipcMain.handle('app:state', async () => publicState(await readSettings()));
+ipcMain.handle('app:java-detect', async () => {
+  const runtimes = await detectJavaRuntimes();
+  const state = await readSettings();
+  const configured = state.javaPath && runtimes.find(item => item.path === state.javaPath);
+  const best = configured || runtimes.find(item => item.major === 21) || runtimes.find(item => item.major === 17) || runtimes.find(item => item.major === 8) || runtimes[runtimes.length - 1] || null;
+  if (!state.javaPath && best) {
+    state.javaPath = best.path;
+    await writeSettings(state);
+  }
+  return { runtimes, selectedPath: state.javaPath || (best && best.path) || '', selectedMajor: (runtimes.find(item => item.path === (state.javaPath || (best && best.path))) || {}).major || 0 };
+});
+ipcMain.handle('app:java-select', async (_event, selectedPath) => {
+  const value = String(selectedPath || '').trim();
+  if (!value) {
+    const state = await readSettings();
+    state.javaPath = '';
+    await writeSettings(state);
+    return { ok: true, state: publicState(state) };
+  }
+  const runtimes = await detectJavaRuntimes();
+  const selected = runtimes.find(item => item.path === value);
+  if (!selected) throw new Error('Choose a Java runtime JustPlay detected on this computer. Try Auto-detect first.');
+  const state = await readSettings();
+  state.javaPath = selected.path;
+  await writeSettings(state);
+  return { ok: true, selected, state: publicState(state) };
+});
+ipcMain.handle('minecraft:skin-sync', async () => syncMinecraftSkin());
 ipcMain.handle('account:local-create', async (_event, username, password) => createLocalAccount(username, password));
 ipcMain.handle('account:local-sign-in', async (_event, username, password) => signInLocalAccount(username, password));
 ipcMain.handle('account:local-sign-out', async () => signOutLocalAccount());
@@ -845,14 +1106,14 @@ ipcMain.handle('app:set-ram', async (_event, maxRam) => {
   const state = await readSettings(); state.maxRam = maxRam; state.minRam = '1G'; await writeSettings(state); return { ok: true, maxRam };
 });
 ipcMain.handle('account:sign-in', async () => signInMicrosoft());
-ipcMain.handle('account:sign-out', async () => { microsoftSession = null; const state = await readSettings(); state.accountName = ''; await writeSettings(state); return { ok: true }; });
+ipcMain.handle('account:sign-out', async () => { microsoftSession = null; await clearCachedMinecraftSession(); const state = await readSettings(); state.accountName = ''; await writeSettings(state); return { ok: true, state: publicState(state) }; });
 ipcMain.handle('versions:list', async () => {
   const state = await readSettings();
   const catalog = await getCatalog();
   const installed = await scanInstalledProfiles(state);
   return buildPublicCatalog(catalog, installed);
 });
-ipcMain.handle('minecraft:launch', async (_event, entry) => launchMinecraft(entry));
+ipcMain.handle('minecraft:launch', async (_event, entry, mode) => launchMinecraft(entry, mode));
 ipcMain.handle('files:add', async (_event, kind, mcVersion) => addAsset(kind, mcVersion));
 ipcMain.handle('files:list', async (_event, kind, mcVersion) => getAssetList(kind, mcVersion));
 ipcMain.handle('files:remove', async (_event, kind, mcVersion, name, folderType) => removeAsset(kind, mcVersion, name, folderType));
