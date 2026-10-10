@@ -1,158 +1,65 @@
-# JustPlay — Minecraft Java Launcher
+# JustPlay — Roblox Game Launcher
 
-JustPlay is an unofficial Windows desktop launcher starter project with a clean UI, local profile folders, a version browser, an optional local display profile plus Microsoft sign-in when launching Minecraft, mod/resource-pack file management, and a Windows installer build configuration.
+JustPlay is a Windows desktop launcher for discovering Roblox experiences and opening them directly in the official Roblox app. This major rebuild replaces the previous Minecraft-focused interface.
 
-**Latest Windows installer:** [JustPlay v0.2.3](https://github.com/43r5fer/JustPlay/releases/download/v0.2.3/JustPlay.exe). This release adds official Fabric Loader installation and launching alongside compatible Java runtime detection, official Minecraft skin sync, and encrypted saved-session launching for installed profiles. The in-app updater remains enabled.
+## Get JustPlay
 
-> **Important:** this package is source code, not a precompiled `.exe`. Build it using the steps below. It does not bypass Minecraft ownership. Microsoft sign-in is handled through the authentication library's window; JustPlay does not ask for your Microsoft password in its own form.
+- **Windows installer:** https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe
+- **Latest release:** https://github.com/43r5fer/JustPlay/releases/latest
+- **Source ZIP:** https://github.com/43r5fer/JustPlay/archive/refs/tags/v0.3.0.zip
 
-## Included
+## Features
 
-- `src/index.html`, `src/styles.css`, `src/renderer.js` — JustPlay desktop UI.
-- `electron/main.cjs`, `electron/preload.cjs` — local file/folder handling and a restricted IPC bridge.
-- `site/` — the separate landing page, original pixel-inspired scenery, documentation and download CTA.
-- `CHANGELOG.md` — release-by-release feature notes.
-- `scripts/write-update-manifest.cjs` — creates SHA-512 metadata for the published Windows installer.
-- `.github/workflows/build-windows.yml` — builds a Windows installer artifact from GitHub Actions.
-- Electron Builder NSIS configuration — creates `dist/JustPlay.exe`.
+- A redesigned dark desktop interface with game cards, search, a featured experience, and a responsive layout.
+- Popular experience suggestions and Roblox experience search.
+- One-click launching through Roblox's documented \`roblox://placeId=<id>\` deep link; if the protocol can't be opened, JustPlay falls back to the game's web page.
+- Local Favorites collection for game place IDs.
+- Optional Roblox profile connection through Roblox OAuth 2.0 / OpenID Connect using authorization-code flow with PKCE.
+- OAuth tokens are encrypted with Electron \`safeStorage\` before they are stored on this Windows profile.
+- The app never asks for or stores a Roblox password or Roblox browser cookie.
 
-## Windows setup
+## Important account behavior
 
-1. Install a supported **Node.js LTS** release from <https://nodejs.org/>. During setup, keep the option to add Node.js to PATH enabled. Close and reopen Command Prompt after installation.
-2. Extract this ZIP to a writable folder such as `Desktop\JustPlay`.
-3. Open that folder in File Explorer. Click the address bar, type `cmd`, and press Enter.
-4. Run:
+Roblox OAuth identifies the connected profile in JustPlay. It does **not** sign the user into the Roblox desktop client or mint a gameplay session; the official Roblox app handles game authentication. Users should sign into Roblox in the official app once. If JustPlay cannot open \`roblox://\`, install or update Roblox and try again.
 
-   ```bat
-   npm install
-   npm run dev
-   ```
+Game browsing and launching are available without connecting an OAuth profile. Users can connect later in Settings. The Create account action opens Roblox's own website; account creation and password reset happen on Roblox, not inside JustPlay.
 
-5. To create the Windows installer, close the app and run:
+## Configure Roblox profile sign-in
 
-   ```bat
-   npm run dist:win
-   ```
+A Roblox OAuth Client ID is not bundled into this public source repository. To turn on **Continue with Roblox**:
 
-   The installer will be written into `dist\JustPlay.exe`. Double-click that setup file to install JustPlay and create Start Menu/Desktop shortcuts.
+1. Open the [Roblox Creator Dashboard OAuth 2.0 Apps](https://create.roblox.com/dashboard/credentials) page and register an OAuth app. Roblox currently requires an ID-verified creator account to register/publish OAuth apps.
+2. Add the identity scopes \`openid\` and \`profile\`.
+3. Register this exact redirect URL: \`http://localhost:53682/callback\`.
+4. Copy the public Client ID (not the secret) into JustPlay's first-screen setup or Settings and save it.
+5. Press **Continue with Roblox**. Roblox opens in the system browser. Sign in there and approve the requested identity information.
 
-If `npm` is “not recognized”, Node.js is missing or its PATH update has not reached the current terminal. Install Node.js LTS, close every open Command Prompt window, and open a new one.
+JustPlay uses the PKCE S256 verifier and a random state value. The local callback listens only on loopback, and the actual tokens are stored only if Electron secure storage is available. Never paste a Roblox password, session cookie, or client secret into JustPlay. Roblox OAuth is currently documented as a beta feature and app publication/review limits are controlled by Roblox.
 
-## Publish the public website and Windows installer with GitHub
+## Build from source on Windows
 
-The public repository is `43r5fer/JustPlay`. The launcher source and landing page are committed to `main`. The first Windows installer has been built and published as Release `v0.1.0`.
+Install Node.js 22 or a compatible supported release, then open Command Prompt in the project directory:
 
-### Publish the website
+\`\`\`bat
+npm install
+npm run check
+npm run dev
+\`\`\`
 
-1. In the repository, open **Settings → Pages**.
-2. Set the publishing source to **GitHub Actions**.
-3. Push the project to `main`, or open **Actions → Publish JustPlay website to GitHub Pages → Run workflow**.
-4. The site should be published at `https://43r5fer.github.io/JustPlay/` after the workflow succeeds.
+Create a Windows installer:
 
-### Publish the installer
+\`\`\`bat
+npm run dist:win
+\`\`\`
 
-1. From a local clone, create and push a version tag:
+The installer is created in \`dist\`. A GitHub Actions workflow builds the Windows installer and attaches it to tagged releases.
 
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
+## Technical notes
 
-2. The **Build and release JustPlay for Windows** workflow builds the NSIS installer on a Windows runner and attaches `JustPlay.exe` to the GitHub Release.
-3. The v0.2.3 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.3/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
-4. To publish future website updates, ensure Settings → Pages uses GitHub Actions, then open Actions → Publish JustPlay website to GitHub Pages → Run workflow if a push does not trigger it.
-4. The Windows installer creates a Start Menu shortcut named **JustPlay** and a desktop shortcut, so Windows Search can find the installed app.
+- Electron main process: \`electron/main.cjs\`
+- Roblox OAuth, game discovery, thumbnails, favorites, and deep-link handling: \`electron/roblox.cjs\`
+- Sandboxed renderer bridge: \`electron/preload.cjs\`
+- Desktop UI: \`src/index.html\`, \`src/styles.css\`, and \`src/renderer.js\`
+- Public landing page: \`site/index.html\`
 
-You can also run the build workflow manually to test the build artifact before creating a version tag. Manually triggered builds upload an Actions artifact but do not publish a Release unless they run on a `v*` tag.
-
-The app is not code-signed in this starter project. Windows SmartScreen may show an unknown-publisher warning until a publisher certificate is added.
-
-## First run
-
-1. Enter a display name and choose **Set up JustPlay**.
-2. JustPlay checks available local drives and tries the drive with the most free space first. It creates:
-   - `JustPlay\Game Versions\`
-   - `JustPlay\resource packs\`
-   - `JustPlay\mods\`
-   - `JustPlay\config\`
-3. A local display profile is enough to set up the launcher and organize files. In Settings, you can also create a local JustPlay username/password account for the launcher; that account is saved only on this PC and does not authenticate to Minecraft services.
-4. To launch Minecraft through JustPlay, complete Microsoft sign-in for an account with Minecraft: Java Edition access. A local JustPlay account only signs into the launcher profile; it cannot replace Minecraft's game-authentication and ownership checks.
-5. In Settings, use **Auto-detect** under Java Runtime to find installed Java executables. JustPlay chooses a compatible Java major version for the selected Minecraft version.
-6. In Settings, **Sync my skin** previews the active skin for the currently authenticated Minecraft Java profile. It uses Minecraft's official profile endpoint and does not modify your account's skin.
-5. Choose a Minecraft Java version. The first launch downloads the game files; later launches can use the installed profile.
-
-After a successful Microsoft sign-in, JustPlay can save the Minecraft launcher session for up to 20 hours using Electron's OS-provided `safeStorage` encryption. This enables saved-session play for already-installed profiles. The cache is deleted when you explicitly sign out. No Microsoft password or refresh token is saved. On Windows, `safeStorage` protects the cached data using Windows DPAPI; it is not a server-side account session.
-
-## Versions, Forge, Fabric and OptiFine
-
-- Release, snapshot and legacy version metadata is read from Mojang's official version manifest: <https://piston-meta.mojang.com/mc/game/version_manifest_v2.json>.
-- Forge version metadata is read from Forge's official Maven metadata. The launcher downloads the matching installer JAR from `maven.minecraftforge.net` and hands it to the launcher core. Compatibility varies by Minecraft/Forge build and Java runtime; check the logs if a selected build fails.
-- Fabric-supported game versions are read from Fabric Meta. JustPlay selects a compatible stable Fabric Loader release, downloads the official installer from `maven.fabricmc.net`, and creates a profile in the selected isolated game folder.
-- OptiFine versions are listed when the official downloads page is readable, but OptiFine uses its own website/installer flow. JustPlay opens <https://optifine.net/downloads> and does not automate ad redirects, CAPTCHA, or installer prompts. Follow OptiFine's instructions and install the profile into the matching JustPlay game folder.
-- Installed loader profiles are detected from local version metadata when available. A mod must match the Minecraft version and loader.
-
-## Mods and resource packs
-
-- Mods: add `.jar` files. JustPlay copies the selected file to the shared `mods` folder and the active profile's `mods` folder.
-- Java resource packs: add `.zip` files. JustPlay copies them to the shared `resource packs` folder and the active profile's `resourcepacks` folder.
-- The app copies files without replacing existing profile files during launch sync. File management stays within folders created under the configured JustPlay root.
-
-Only install add-ons from sources you trust. This app does not verify the safety of third-party JAR files.
-
-## Known limitations of this initial build
-
-- Java runtime detection searches `PATH`, `JAVA_HOME`, common JDK install directories and the official Minecraft Launcher runtime folder. If no compatible major version is found, install one from the Java downloads link in Docs.
-- The Microsoft authentication dependency is an external open-source library; its compatibility depends on Microsoft's current sign-in policies. Authentication failures are shown in the UI rather than bypassed.
-- Forge, Fabric and OptiFine support varies by release. OptiFine still requires its official installer workflow.
-- This project has not been signed or independently audited, and this container cannot provide a production code-signing certificate.
-- Users on v0.1.1 must install v0.2.0 once manually because v0.1.1 shipped without an update checker. Once v0.2.0 is installed, future releases can be detected from inside the launcher.
-
-## Legal / project status
-
-JustPlay is an independent community project and is not affiliated with, endorsed by, or sponsored by Mojang or Microsoft. Minecraft and Microsoft are trademarks of their respective owners. You need a valid Minecraft: Java Edition account/license to play.
-
-## Microsoft sign-in troubleshooting
-
-A scrubbed diagnostic is written to `%APPDATA%\justplay-launcher\logs\microsoft-auth.log`. It avoids storing password or token values.
-
-
-### Microsoft sign-in diagnostics update
-
-If Microsoft sign-in opens successfully but Xbox/Minecraft verification fails, this build preserves safe structured error fields instead of displaying `[object Object]`. It redacts token-like properties and omits raw HTTP bodies, headers, request configs, and stack traces. Retry sign-in and inspect `%APPDATA%\justplay-launcher\logs\microsoft-auth.log` for the underlying error code/message. Never share passwords, access tokens, refresh tokens, or authorization codes. This improves diagnostics; it does not bypass Xbox profile, family safety, or Minecraft ownership requirements.
-
-
-## Local profile vs. game authentication
-
-JustPlay allows users to enter the app, choose a display name, install versions, and manage mods/resource packs without logging in immediately. The display name is only a local launcher profile; it is not a Minecraft identity and does not unlock multiplayer or game ownership. JustPlay will require valid Minecraft Java account authentication when starting the game. This project intentionally does not impersonate TLauncher or implement cracked/offline authentication that bypasses game access checks.
-
-
-## v0.2.3 Fabric Loader support
-
-- Added a Fabric tab to the version library using Fabric Meta's supported stable Minecraft versions.
-- Install and launch Fabric Loader profiles from JustPlay with the official Fabric installer CLI.
-- Installed Fabric profiles are discoverable under Installed and can use the same recent encrypted saved-session flow as other previously authenticated, fully installed profiles.
-- No cracked/offline token mode is added: Microsoft authentication and valid Java Edition access remain required.
-
-## v0.2.2 Java, skin sync and saved-session play
-
-- Java runtime scanning checks `PATH`, `JAVA_HOME`, common Windows JDK directories, and the official Minecraft Launcher runtime folder. JustPlay picks a compatible Java major version for each selected Minecraft version and exposes the detected installs in Settings.
-- Skin sync uses the active Microsoft-authenticated Minecraft Java profile and reads the active skin texture URL from the official Minecraft profile service. The preview is read-only; it does not edit the account's skin.
-- After a successful, non-demo Microsoft Minecraft sign-in, JustPlay stores the actual launcher session in an Electron `safeStorage` encrypted file. Saved-session play is available for up to 20 hours and only for already-installed profiles whose local client JAR and asset cache are present. Explicit Microsoft sign-out clears the cached session. It does not fabricate tokens or convert failed entitlement checks into access.
-
-## v0.2.1 JustPlay login screen and guest mode
-
-At launch, JustPlay presents a dedicated local account screen. Players can create an account, sign into a previously created account stored on this PC, or continue as a guest. The local profile does not grant Minecraft access. The existing in-app updater from v0.2.0 can detect and download this release.
-
-## v0.2.0 updates and local accounts
-
-The launcher checks GitHub Releases on startup, shows update availability and download progress, and can restart to install a downloaded update. Release builds include `latest.yml` metadata containing the installer SHA-512 hash and size. The Docs page contains the same version's change notes. The Settings page also lets you create or sign into a local JustPlay account; usernames and salted password hashes are stored locally, not sent to a server. This account does not grant Minecraft access.
-
-Users on v0.1.1 need to install v0.2.0 once by hand; later updates can be offered in-app.
-
-## v0.1.1 sign-in diagnostics update
-
-The v0.1.1 Windows build preserves safe structured authentication error details, including HTTP status and common Xbox/Minecraft error fields from nested response data. Secrets, token fields, authorization headers, and raw request/config objects are redacted or omitted. This fixes the prior diagnostic output that only showed `{"type":"[object Object]"}`; it helps identify the cause but does not bypass ownership or account restrictions.
-
-A local display-name profile remains available for using the launcher UI, browsing versions, and organizing mod/resource-pack files without signing in. Actual Minecraft gameplay still needs valid Minecraft Java access. JustPlay does not offer cracked authentication.
-
-To troubleshoot a new failure, inspect `%APPDATA%\justplay-launcher\logs\microsoft-auth.log` and share only the safe `stage`, `errorCode`, `message`, and `details` fields after removing personal information. Never share tokens or authorization codes.
+Roblox game discovery uses public Roblox web services that may change or rate-limit requests. JustPlay is not affiliated with, endorsed by, or sponsored by Roblox Corporation. Roblox and its logos are trademarks of Roblox Corporation.
