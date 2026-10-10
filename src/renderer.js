@@ -1118,7 +1118,7 @@ async function openProfileEditor() {
     kicker: 'FLOCK / YOUR PROFILE',
     title: 'Your space, your style.',
     description: 'Your display name, avatar and background sync to your account across devices.',
-    body: '<div class="profile-edit-row"><div class="profile-edit-avatar">' + (avatarUrl ? '<img src="' + escapeHtml(avatarUrl) + '" alt="">' : escapeHtml(safeInitial(profile.display_name))) + '</div><div><strong class="profile-edit-name">' + escapeHtml(profile.display_name) + '</strong><div class="field-hint">@' + escapeHtml(profile.username) + ' · username cannot be changed yet</div><button id="chooseAvatarBtn" class="text-button" type="button">Change profile picture ↗</button></div></div><label for="displayNameInput">DISPLAY NAME</label><input id="displayNameInput" class="input-field" maxlength="80" value="' + escapeHtml(profile.display_name) + '"><label for="bioInput">ABOUT YOU</label><textarea id="bioInput" class="input-field" maxlength="180" rows="2" placeholder="A little about you…">' + escapeHtml(profile.bio || '') + '</textarea><div class="profile-background-row"><div><strong>Chat background</strong><small>' + escapeHtml(backgroundLabel) + '</small></div><button id="chooseBackgroundBtn" class="button button-soft" type="button">Choose photo or video</button><button id="clearBackgroundBtn" class="text-button" type="button">Remove</button></div>',
+    body: '<div class="profile-edit-row"><div class="profile-edit-avatar">' + (avatarUrl ? '<img src="' + escapeHtml(avatarUrl) + '" alt="">' : escapeHtml(safeInitial(profile.display_name))) + '</div><div><strong class="profile-edit-name">' + escapeHtml(profile.display_name) + '</strong><div class="field-hint">@' + escapeHtml(profile.username) + ' · username cannot be changed yet</div><button id="chooseAvatarBtn" class="text-button" type="button">Change profile picture ↗</button></div></div><label for="displayNameInput">DISPLAY NAME</label><input id="displayNameInput" class="input-field" maxlength="80" value="' + escapeHtml(profile.display_name) + '"><label for="bioInput">ABOUT YOU</label><textarea id="bioInput" class="input-field" maxlength="180" rows="2" placeholder="A little about you…">' + escapeHtml(profile.bio || '') + '</textarea><div class="profile-background-row"><div><strong>Chat background</strong><small>' + escapeHtml(backgroundLabel) + '</small></div><button id="chooseBackgroundBtn" class="button button-soft" type="button">Choose photo or video</button><button id="clearBackgroundBtn" class="text-button" type="button">Remove</button></div><div class="profile-security-row"><div><strong>Account password</strong><small>Change your Flock password any time.</small></div><button id="changePasswordBtn" class="button button-soft" type="button">Change password</button></div>',
     primary: 'Save profile',
     onPrimary: async () => {
       const displayName = $('displayNameInput').value.trim();
@@ -1133,6 +1133,10 @@ async function openProfileEditor() {
       toast('Profile updated', 'Your profile is synced.');
     }
   });
+  $('changePasswordBtn').addEventListener('click', () => {
+    closeModal();
+    openChangePassword().catch(err => toast('Could not open password settings', err.message || 'Try again.', true));
+  });
   $('chooseAvatarBtn').addEventListener('click', () => { closeModal(); $('avatarFileInput').click(); });
   $('chooseBackgroundBtn').addEventListener('click', () => { closeModal(); $('backgroundFileInput').click(); });
   $('clearBackgroundBtn').addEventListener('click', async () => {
@@ -1145,6 +1149,24 @@ async function openProfileEditor() {
     applyChatWallpaper();
     toast('Background removed', 'Your chats are back to the default look.');
     await openProfileEditor();
+  });
+}
+async function openChangePassword() {
+  showModal({
+    kicker: 'FLOCK / ACCOUNT SECURITY',
+    title: 'Update your password',
+    description: 'Your password is hashed on the server. Flock never stores or displays the original password.',
+    body: '<label for="currentPasswordInput">CURRENT PASSWORD</label><input id="currentPasswordInput" class="input-field" type="password" autocomplete="current-password" maxlength="128" placeholder="Current password"><label for="newPasswordInput">NEW PASSWORD</label><input id="newPasswordInput" class="input-field" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="At least 8 characters"><label for="confirmNewPasswordInput">CONFIRM NEW PASSWORD</label><input id="confirmNewPasswordInput" class="input-field" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Type it again">',
+    primary: 'Update password',
+    onPrimary: async () => {
+      const current = $('currentPasswordInput').value;
+      const next = $('newPasswordInput').value;
+      if (next.length < 8 || next.length > 128) throw new Error('New password must be 8–128 characters long.');
+      if (next !== $('confirmNewPasswordInput').value) throw new Error('The new passwords do not match.');
+      await flockAuth('change-password', { password: current, newPassword: next });
+      closeModal();
+      toast('Password updated', 'Other active sessions have been signed out.');
+    }
   });
 }
 async function handleAvatarUpload(file) {
