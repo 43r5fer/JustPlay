@@ -7,6 +7,10 @@
 - [x] Windows installer built by GitHub Actions
 - [x] Public release `v0.1.0` published with `JustPlay.exe`
 - [x] Public hotfix release `v0.1.1` published with improved Microsoft auth diagnostics
+- [x] Release `v0.2.0` published with the new updater, release notes and local launcher accounts
+- [x] Windows build and JavaScript syntax checks passed for `v0.2.0`
+- [x] Release includes `JustPlay.exe` and `latest.yml` update metadata
+- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once
 - [x] Release download URL verified in GitHub release metadata
 
 ## One required repository setting for the website
@@ -19,7 +23,8 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 
 ## Downloads
 - Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Release notes/assets: <https://github.com/43r5fer/JustPlay/releases/tag/v0.1.1>
+- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.0>
+- Changelog: <https://github.com/43r5fer/JustPlay/blob/main/CHANGELOG.md>
 - Public repository: <https://github.com/43r5fer/JustPlay>
 
 ## Before broader promotion
@@ -30,4 +35,4 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 - [ ] Consider code-signing the installer; this current community build is unsigned and Windows may warn about unknown publisher.
 - [ ] Review third-party dependency audit output and keep dependencies updated.
 
-JustPlay is independent and not affiliated with Mojang or Microsoft. A local display name is not Minecraft account authentication; valid Minecraft Java access is required to launch the game.
+JustPlay is independent and not affiliated with Mojang or Microsoft. A local display name is not Minecraft account authentication; valid Minecraft Java access is required to launch the game. A local JustPlay username/password account only signs into the local launcher profile and does not bypass game ownership checks.
