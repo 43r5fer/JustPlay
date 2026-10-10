@@ -1,69 +1,106 @@
-# JustPlay — Roblox Game Launcher
+# Flock — your people, in one place
 
-JustPlay is a Windows desktop launcher for discovering Roblox experiences and opening them directly in the official Roblox app. This major rebuild replaces the previous Minecraft-focused interface.
+Flock is a cross-platform messaging app built around friend codes, real-time conversations, media sharing, group roles and 24-hour moments. The same web UI runs in the Windows Electron app, Android Capacitor wrapper and installable browser PWA.
 
-## Get JustPlay
+## Current features
 
-- **Windows installer:** https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe
-- **Latest release:** https://github.com/43r5fer/JustPlay/releases/tag/v0.3.1
-- **Source ZIP:** https://github.com/43r5fer/JustPlay/archive/refs/tags/v0.3.1.zip
+- Global accounts with Supabase Auth (email + password), username and password confirmation during sign-up, email confirmation when enabled, password reset, and sign-out.
+- A unique 10-digit friend code per profile, friend requests, acceptance and friend lists.
+- Live direct and group conversations through Supabase Realtime.
+- Grey double ticks for sent messages, changing to green when a recipient has read the message.
+- Edit/delete your own messages, replies, emoji reactions and YouTube link sharing.
+- Upload photos, videos, voice messages, files, recorded voice notes and recorded video notes.
+- Groups with owner/admin/co-admin/member roles and controlled membership management.
+- 24-hour text/photo/video statuses.
+- Editable display name, profile photo, bio, and synced image/video chat background.
+- Private Supabase Storage media bucket with authenticated, row-level access policies.
+- Windows installer, Android APK workflow, and installable PWA/web app.
 
-## v0.3.1 search compatibility fix
+## Downloads
 
-- Updated Roblox experience search query parameters to use the current `searchQuery`, `pageToken`, `sessionId`, and `pageType=all` form. Roblox's public discover/search endpoints are undocumented and may change.
+- **Windows setup:** https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
+- **Android APK:** https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
+- **Web app:** https://43r5fer.github.io/JustPlay/app/
+- **Landing page and release links:** https://43r5fer.github.io/JustPlay/
+- **Source repository:** https://github.com/43r5fer/JustPlay
 
-## Features
+The first Android CI artifact is a debug-signed APK for direct installation/testing. For Play Store or wider public distribution, sign the app with a dedicated release keystore and protect its credentials in repository secrets.
 
-- A redesigned dark desktop interface with game cards, search, a featured experience, and a responsive layout.
-- Popular experience suggestions and Roblox experience search.
-- One-click launching through Roblox's documented \`roblox://placeId=<id>\` deep link; if the protocol can't be opened, JustPlay falls back to the game's web page.
-- Local Favorites collection for game place IDs.
-- Optional Roblox profile connection through Roblox OAuth 2.0 / OpenID Connect using authorization-code flow with PKCE.
-- OAuth tokens are encrypted with Electron \`safeStorage\` before they are stored on this Windows profile.
-- The app never asks for or stores a Roblox password or Roblox browser cookie.
+## Supabase configuration
 
-## Important account behavior
+Flock is already connected to the configured Supabase project. The frontend config is in src/flock-config.js and contains the project URL and a **publishable key**. These values are meant for client apps; never put a service_role key or database secret in the frontend.
 
-Roblox OAuth identifies the connected profile in JustPlay. It does **not** sign the user into the Roblox desktop client or mint a gameplay session; the official Roblox app handles game authentication. Users should sign into Roblox in the official app once. If JustPlay cannot open \`roblox://\`, install or update Roblox and try again.
+The deployed schema uses its own flock_* tables and a private flock-media bucket. It does not reuse or overwrite the other app tables already in the project. RLS policies scope conversations/messages to their members, profile updates to the owner, and media access to the owner/friends/chat membership. Passwords are handled by Supabase Auth; Flock does not store password hashes itself.
 
-Game browsing and launching are available without connecting an OAuth profile. Users can connect later in Settings. The Create account action opens Roblox's own website; account creation and password reset happen on Roblox, not inside JustPlay.
+Important Supabase Auth settings:
+1. Enable Email + Password in Authentication > Sign In / Providers.
+2. Choose whether email confirmation is required. If enabled, users must confirm their email before signing in.
+3. For password-reset messages, configure the production web app URL and allowed redirects in Authentication > URL Configuration.
+4. Keep RLS enabled. Never ship the service-role key to an Electron, web or Android client.
 
-## Configure Roblox profile sign-in
+## Run the Windows app from source
 
-A Roblox OAuth Client ID is not bundled into this public source repository. To turn on **Continue with Roblox**:
+Install Node.js 22 or newer, then run in the repository folder:
 
-1. Open the [Roblox Creator Dashboard OAuth 2.0 Apps](https://create.roblox.com/dashboard/credentials) page and register an OAuth app. Roblox currently requires an ID-verified creator account to register/publish OAuth apps.
-2. Add the identity scopes \`openid\` and \`profile\`.
-3. Register this exact redirect URL: \`http://localhost:53682/callback\`.
-4. Copy the public Client ID (not the secret) into JustPlay's first-screen setup or Settings and save it.
-5. Press **Continue with Roblox**. Roblox opens in the system browser. Sign in there and approve the requested identity information.
-
-JustPlay uses the PKCE S256 verifier and a random state value. The local callback listens only on loopback, and the actual tokens are stored only if Electron secure storage is available. Never paste a Roblox password, session cookie, or client secret into JustPlay. Roblox OAuth is currently documented as a beta feature and app publication/review limits are controlled by Roblox.
-
-## Build from source on Windows
-
-Install Node.js 22 or a compatible supported release, then open Command Prompt in the project directory:
-
-\`\`\`bat
+~~~bat
 npm install
 npm run check
 npm run dev
-\`\`\`
+~~~
 
-Create a Windows installer:
+Create the Windows setup executable:
 
-\`\`\`bat
+~~~bat
 npm run dist:win
-\`\`\`
+node scripts/write-update-manifest.cjs
+~~~
 
-The installer is created in \`dist\`. A GitHub Actions workflow builds the Windows installer and attaches it to tagged releases.
+Outputs are dist/Flock-Setup.exe and dist/latest.yml.
 
-## Technical notes
+## Build Android from source
 
-- Electron main process: \`electron/main.cjs\`
-- Roblox OAuth, game discovery, thumbnails, favorites, and deep-link handling: \`electron/roblox.cjs\`
-- Sandboxed renderer bridge: \`electron/preload.cjs\`
-- Desktop UI: \`src/index.html\`, \`src/styles.css\`, and \`src/renderer.js\`
-- Public landing page: \`site/index.html\`
+Install Node.js 22+, Android Studio/Android SDK (API 36), and a compatible JDK. Then:
 
-Roblox game discovery uses public Roblox web services that may change or rate-limit requests. JustPlay is not affiliated with, endorsed by, or sponsored by Roblox Corporation. Roblox and its logos are trademarks of Roblox Corporation.
+~~~bat
+npm install
+npm run mobile:prepare
+npx cap add android
+node scripts/patch-android-manifest.mjs
+npx cap sync android
+node scripts/patch-android-manifest.mjs
+~~~
+
+Open the generated android folder in Android Studio or build from a shell with the Android SDK installed:
+
+~~~bat
+cd android
+gradlew.bat assembleDebug
+~~~
+
+The APK output is android/app/build/outputs/apk/debug/app-debug.apk. On Linux/macOS CI use ./gradlew assembleDebug. GitHub Actions automates a Windows setup build and an Android APK build for tags beginning with v.
+
+## Build the web/PWA app
+
+The same files under src/ are deployed to the /app/ path on GitHub Pages. A browser can use the app directly; supported browsers may offer **Install app** / **Add to Home Screen**. Signing into the same Flock account syncs cloud data across devices. Authenticated messaging and uploads need an internet connection.
+
+## Privacy and limitations
+
+- Supabase Auth stores/validates account passwords; the client only manages the Auth session.
+- Message and media content is stored in the configured Supabase project. A private bucket uses signed links for media downloads.
+- Browser microphone/camera permissions are required for voice and video notes.
+- Flock is an early-stage project. Test sign-up/email confirmation, friend requests, realtime synchronization, media upload/recording, read receipts, group permissions and recovery flows on Windows and Android before relying on it for important conversations.
+- Flock has not been audited as an end-to-end encrypted messenger; data is protected by Supabase Auth, RLS and private media access, but do not describe it as E2EE.
+
+## Main source map
+
+- src/index.html — desktop/mobile messaging UI
+- src/styles.css — responsive UI
+- src/renderer.js — Supabase Auth, profile, chat, realtime, media and status behavior
+- src/flock-config.js — public Supabase project config
+- src/manifest.webmanifest, src/service-worker.js — installable PWA shell
+- electron/main.cjs, electron/preload.cjs — Windows wrapper and update support
+- capacitor.config.json, scripts/build-mobile.mjs, scripts/patch-android-manifest.mjs — Android wrapper/build
+- .github/workflows/build-flock.yml — build and release workflow
+- .github/workflows/deploy-pages.yml — website/PWA deployment
+
+Flock is an independent community messenger, not affiliated with any other messaging platform.
