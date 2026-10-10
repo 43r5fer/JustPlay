@@ -395,12 +395,13 @@ async function gamesByPlaceIds(placeIds) {
   const known = new Map(POPULAR_GAMES.map(item => [item.placeId, item]));
   let games = ids.map(id => {
     const item = known.get(id);
-    return item ? {
-      id: id, placeId: id, name: item.name, creator: 'Roblox creator', description: '',
-      genre: item.genre, players: 0, visits: 0, iconUrl: '', featured: Boolean(item.featured),
-      url: 'https://www.roblox.com/games/' + id,
-    } : null;
-  }).filter(Boolean);
+    return {
+      id: id, placeId: id, name: item ? item.name : 'Saved Roblox experience',
+      creator: item ? 'Roblox creator' : 'Saved by you', description: '',
+      genre: item ? item.genre : 'Saved', players: 0, visits: 0, iconUrl: '',
+      featured: Boolean(item && item.featured), url: 'https://www.roblox.com/games/' + id,
+    };
+  });
   try {
     const url = new URL('https://games.roblox.com/v1/games/multiget-place-details');
     url.searchParams.set('placeIds', ids.join(','));
@@ -411,7 +412,7 @@ async function gamesByPlaceIds(placeIds) {
         const item = byId.get(id);
         const normalized = normalizeGame(item ? { ...item, placeId: item.placeId || id } : null);
         if (normalized) return normalized;
-        return games.find(game => game.placeId === id) || null;
+        return games.find(game => game.placeId === id) || { id: id, placeId: id, name: 'Saved Roblox experience', creator: 'Saved by you', description: '', genre: 'Saved', players: 0, visits: 0, iconUrl: '', featured: false, url: 'https://www.roblox.com/games/' + id };
       }).filter(Boolean);
       if (metadataGames.length) games = metadataGames;
     }
