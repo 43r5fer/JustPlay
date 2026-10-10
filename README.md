@@ -2,6 +2,8 @@
 
 JustPlay is an unofficial Windows desktop launcher starter project with a clean UI, local profile folders, a version browser, an optional local display profile plus Microsoft sign-in when launching Minecraft, mod/resource-pack file management, and a Windows installer build configuration.
 
+**Latest Windows installer:** [JustPlay v0.1.1](https://github.com/43r5fer/JustPlay/releases/download/v0.1.1/JustPlay.exe). This release improves safe Microsoft/Xbox error diagnostics; a successful sign-in on every account has not yet been verified.
+
 > **Important:** this package is source code, not a precompiled `.exe`. Build it using the steps below. It does not bypass Minecraft ownership. Microsoft sign-in is handled through the authentication library's window; JustPlay does not ask for your Microsoft password in its own form.
 
 ## Included
