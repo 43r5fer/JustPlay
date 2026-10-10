@@ -4,245 +4,143 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>JustPlay — Minecraft Java Launcher</title>
+  <meta name="theme-color" content="#111114">
+  <title>JustPlay — Roblox Game Launcher</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-frame">
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-topbar">
+      <a class="brand" href="#" aria-label="JustPlay home"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><span>just<span class="brand-accent">play</span></span><span class="brand-separator">/</span><span class="brand-edition">ROBLOX</span></a>
+      <span class="secure-chip"><span class="status-pulse"></span> Official client handoff</span>
+    </div>
+    <main class="auth-layout">
+      <section class="auth-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR NEXT GAME IS WAITING</div>
+        <h1>Less searching.<br><span>More playing.</span></h1>
+        <p class="auth-lede">One clean home for Roblox experiences. Discover games, keep your favorites close, and jump straight into the official Roblox app.</p>
+        <div class="auth-feature-row">
+          <div class="auth-feature"><span class="feature-glyph">⌕</span><span><strong>Find your next game</strong><small>Search experiences in seconds</small></span></div>
+          <div class="auth-feature"><span class="feature-glyph">↗</span><span><strong>Launch with one click</strong><small>Roblox handles the actual game session</small></span></div>
+        </div>
+      </section>
+      <section class="auth-card">
+        <div class="roblox-logo-mark" aria-hidden="true"><span></span></div>
+        <div class="auth-card-kicker">WELCOME TO JUSTPLAY</div>
+        <h2>Ready when you are.</h2>
+        <p class="auth-card-copy">Connect your Roblox profile to personalize your launcher. Sign-in happens on Roblox's own website—JustPlay never asks for your Roblox password.</p>
+        <button id="robloxSignInBtn" class="button button-primary button-wide"><span class="roblox-button-icon">◩</span><span id="robloxSignInLabel">Continue with Roblox</span><span class="button-arrow">↗</span></button>
+        <button id="browseWithoutSignInBtn" class="button button-quiet button-wide">Browse games first <span>→</span></button>
+        <div class="auth-divider"><span></span> NEW TO ROBLOX? <span></span></div>
+        <button id="createRobloxAccountBtn" class="button button-outline button-wide">Create a Roblox account <span>↗</span></button>
+        <div id="authFeedback" class="feedback" role="status" aria-live="polite"></div>
+        <div id="oauthSetupSummary" class="oauth-summary">
+          <button id="toggleOauthSetupBtn" class="text-button oauth-toggle" type="button"><span class="tiny-lock">⌑</span> Set up Roblox sign-in <span class="chevron">⌄</span></button>
+          <div id="oauthSetupBody" class="oauth-setup-body" hidden>
+            <p>For secure profile sign-in, add your public OAuth Client ID from the Roblox Creator Dashboard. This launcher uses PKCE and a local callback; it never needs your Roblox password or a client secret.</p>
+            <label for="oauthClientIdInput">ROBLOX OAUTH CLIENT ID</label>
+            <input id="oauthClientIdInput" type="text" spellcheck="false" autocomplete="off" placeholder="Paste your public Client ID">
+            <div class="redirect-uri-row"><span>REDIRECT URI</span><code id="redirectUriText">http://127.0.0.1:53682/callback</code><button id="copyRedirectBtn" type="button" title="Copy redirect URI">Copy</button></div>
+            <button id="saveClientIdBtn" class="button button-primary button-wide" type="button">Save Client ID</button>
+            <button id="openOAuthDashboardBtn" class="text-button" type="button">Open Roblox Creator Dashboard ↗</button>
+            <p class="micro-note">Register the redirect URI exactly as shown. Roblox currently requires an ID-verified creator account to register OAuth apps. Browse and game launch still work without connecting a profile.</p>
+          </div>
+        </div>
+        <div class="auth-footnote"><span>◇</span> Independent community launcher. Not affiliated with Roblox Corporation.</div>
+      </section>
+    </main>
+    <div class="auth-footer"><span>JUSTPLAY ROBLOX EDITION <b>·</b> 0.3.0</span><span>Built for the next “one more game”</span></div>
+  </section>
+
+  <section id="appScreen" class="app-shell" hidden>
     <aside class="sidebar">
-      <div class="brand-row">
-        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-        <div class="brand-word">just<span>play</span><small>JAVA LAUNCHER</small></div>
+      <a class="brand sidebar-brand" href="#" aria-label="JustPlay home"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><span>just<span class="brand-accent">play</span></span></a>
+      <div class="sidebar-profile">
+        <div class="profile-avatar-wrap"><img id="sidebarAvatar" alt="" hidden><div id="sidebarAvatarFallback" class="avatar-fallback">J</div><span class="avatar-online-dot"></span></div>
+        <div class="sidebar-profile-text"><strong id="sidebarDisplayName">Player</strong><span id="sidebarUsername">@not_connected</span></div>
+        <button id="sidebarAccountBtn" class="icon-button tiny" title="Account & settings">•••</button>
       </div>
-      <div class="profile-chip">
-        <div id="avatarGlyph" class="avatar-glyph">J</div>
-        <div class="profile-info"><strong id="sidebarPlayerName">New player</strong><span id="accountStatus">Not signed in</span></div>
-        <span class="online-dot" title="Launcher ready"></span>
-      </div>
-      <div class="nav-label">WORKSPACE</div>
-      <nav class="side-nav" aria-label="Main navigation">
-        <button class="nav-item active" data-page="dashboard"><span class="nav-icon">◈</span>Overview</button>
-        <button class="nav-item" data-page="versions"><span class="nav-icon">▦</span>Versions <span id="versionCount" class="nav-count">—</span></button>
-        <button class="nav-item" data-page="mods"><span class="nav-icon">✣</span>Mods</button>
-        <button class="nav-item" data-page="resourcepacks"><span class="nav-icon">▧</span>Resource packs</button>
-        <button class="nav-item" data-page="settings"><span class="nav-icon">⚙</span>Settings</button>
+      <div class="sidebar-label">YOUR SPACE</div>
+      <nav class="primary-nav" aria-label="Main navigation">
+        <button id="navDiscover" class="nav-button active" data-view="discover"><span class="nav-icon">⌕</span><span>Discover</span><kbd>⌘ 1</kbd></button>
+        <button id="navFavorites" class="nav-button" data-view="favorites"><span class="nav-icon">♡</span><span>Favorites</span><span id="favoritesCount" class="nav-count">0</span></button>
       </nav>
-      <div class="sidebar-spacer"></div>
-      <div class="sidebar-foot-card">
-        <div class="mini-spark">✦</div>
-        <strong>Made for your next world.</strong>
-        <p>Keep your game, mods and packs in one tidy place.</p>
-        <button class="text-button" data-page="docs">Read the quick guide <span>↗</span></button>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label">QUICK LINKS</div>
+      <button id="openRobloxWebsiteBtn" class="nav-button"><span class="nav-icon">↗</span><span>Roblox website</span></button>
+      <button id="openRobloxAppBtn" class="nav-button"><span class="nav-icon">◩</span><span>Open Roblox app</span></button>
+      <div class="sidebar-bottom">
+        <div class="sidebar-tip"><span class="tip-spark">✦</span><strong>One click away.</strong><p>Choose a game and JustPlay hands it to the official Roblox app.</p></div>
+        <button id="settingsBtn" class="nav-button settings-nav"><span class="nav-icon">⚙</span><span>Settings</span></button>
+        <div class="sidebar-version"><span class="status-pulse"></span> ROBLOX EDITION <span>0.3.0</span></div>
       </div>
-      <div class="sidebar-footer"><span class="pulse"></span> JustPlay Preview <span class="version-tag">0.2.3</span></div>
     </aside>
 
-    <main class="main-area">
+    <main class="main-content">
       <header class="topbar">
-        <div class="breadcrumbs"><span>JUSTPLAY</span><span class="crumb-slash">/</span><strong id="pageCrumb">OVERVIEW</strong></div>
+        <div class="breadcrumb"><span>JUSTPLAY</span><span class="crumb-slash">/</span><strong id="breadcrumbTitle">Discover</strong></div>
         <div class="topbar-actions">
-          <button id="openRootBtn" class="icon-button" title="Open JustPlay folder" aria-label="Open JustPlay folder">▣</button>
-          <button id="signInBtn" class="account-button"><span class="ms-mark">◉</span><span id="signInLabel">Sign in with Microsoft</span></button>
+          <div id="connectionBadge" class="connection-badge"><span class="connection-dot"></span><span id="connectionBadgeText">Profile not connected</span></div>
+          <button id="topConnectBtn" class="button button-small button-outline">Connect Roblox <span>↗</span></button>
+          <button id="topAvatarBtn" class="top-avatar-button" title="Account and settings"><img id="topAvatar" alt="" hidden><span id="topAvatarFallback">J</span></button>
         </div>
       </header>
 
-      <div class="content-area">
-        <section id="updateBanner" class="update-banner" role="status" aria-live="polite" hidden>
-          <div class="update-banner-mark">↻</div>
-          <div class="update-banner-copy"><strong id="updateTitle">JustPlay update</strong><p id="updateMessage">Checking for updates…</p><div id="updateProgressTrack" class="update-progress-track" hidden><div id="updateProgressFill" class="update-progress-fill"></div></div></div>
-          <div class="update-banner-actions"><button id="updatePrimaryBtn" class="primary-button" type="button">Download update</button><button id="updateDismissBtn" class="quiet-icon-button" type="button" aria-label="Dismiss update message">×</button></div>
-        </section>
-        <section id="page-dashboard" class="page active">
-          <div class="greeting-row">
-            <div>
-              <div class="eyebrow"><span class="eyebrow-dot"></span> YOUR GAME HUB</div>
-              <h1>Ready when <em>you are.</em></h1>
-              <p class="page-subtitle">Your versions, mods and worlds. All within reach.</p>
-            </div>
-            <div class="greeting-badge"><span>✦</span> Made for Java Edition</div>
-          </div>
-
-          <section class="hero-art-card">
-            <div class="hero-glow"></div>
-            <div class="hero-copy">
-              <div class="hero-pill"><span></span> THE NEXT WORLD STARTS HERE</div>
-              <h2>Less setup.<br><em>More adventure.</em></h2>
-              <p>Choose the version you love, organize your add-ons and get straight to the good part.</p>
-              <button class="primary-button hero-cta" data-page="versions">Explore versions <span>↗</span></button>
-            </div>
-            <div class="pixel-world" aria-hidden="true">
-              <div class="sun-orb"></div><div class="cloud cloud-one"></div><div class="cloud cloud-two"></div>
-              <div class="mountain mountain-back"></div><div class="mountain mountain-front"></div>
-              <div class="block-hill hill-left"><i></i><i></i><i></i></div>
-              <div class="block-hill hill-right"><i></i><i></i><i></i></div>
-              <div class="tree tree-one"><b></b><i></i></div><div class="tree tree-two"><b></b><i></i></div>
-              <div class="tiny-house"><b></b><i></i><span></span></div>
-              <div class="world-label">YOUR NEXT WORLD <span>↗</span></div>
-            </div>
-            <div class="hero-bottom-line"><span>01</span><div></div><span>EXPLORE · BUILD · REPEAT</span></div>
-          </section>
-
-          <div class="dashboard-grid">
-            <section class="panel version-panel">
-              <div class="panel-heading"><div><div class="eyebrow">QUICK PLAY</div><h3>Pick up where you left off</h3></div><span class="panel-icon lime-icon">▶</span></div>
-              <div class="quick-version-line">
-                <div class="version-emblem">J<span>+</span></div>
-                <div class="version-text"><strong id="quickSelectedVersion">Loading versions…</strong><span id="quickSelectedDetail">Fetching the official Minecraft version list</span></div>
-                <select id="quickVersionSelect" aria-label="Choose a Minecraft version"><option value="">Loading…</option></select>
-              </div>
-              <div class="play-row"><div class="status-caption"><span class="status-dot"></span><span id="quickStatusText">Ready to set up</span></div><div class="play-actions"><button id="quickLaunchBtn" class="primary-button play-button" disabled>Install &amp; play <span>→</span></button><button id="quickOfflineBtn" class="secondary-button cached-play-button" type="button" hidden>Play with saved session</button></div></div>
-              <div class="panel-note"><span>ⓘ</span> First launch downloads official game files. You need a licensed Java Edition account.</div>
-            </section>
-
-            <section class="panel folders-panel">
-              <div class="panel-heading"><div><div class="eyebrow">YOUR LIBRARY</div><h3>Everything in its place</h3></div><button class="quiet-icon-button" data-page="settings" aria-label="Folder settings">↗</button></div>
-              <button class="folder-row" data-open-folder="game"><span class="folder-icon green-folder">▰</span><span><strong>Game Versions</strong><small>Isolated installs &amp; profiles</small></span><span class="folder-arrow">↗</span></button>
-              <button class="folder-row" data-open-folder="resourcepacks"><span class="folder-icon violet-folder">▰</span><span><strong>Resource packs</strong><small>ZIP packs for your worlds</small></span><span class="folder-arrow">↗</span></button>
-              <button class="folder-row" data-open-folder="mods"><span class="folder-icon blue-folder">▰</span><span><strong>Mods</strong><small>JAR add-ons for your loader</small></span><span class="folder-arrow">↗</span></button>
-              <div class="library-footer"><span>LIBRARY LOCATION</span><button id="rootPathButton" class="path-button" title="Open folder">Not set up yet <span>↗</span></button></div>
-            </section>
-          </div>
-
-          <section class="feature-strip">
-            <div class="feature-item"><span class="feature-icon">▦</span><div><strong>Every official version</strong><p>Releases, snapshots and legacy builds from Mojang's manifest.</p></div></div>
-            <div class="feature-item"><span class="feature-icon">✣</span><div><strong>Your mod setup</strong><p>Keep JAR mods with the instance they belong to.</p></div></div>
-            <div class="feature-item"><span class="feature-icon">▧</span><div><strong>Packs, one place</strong><p>Bring your Java resource packs along for the ride.</p></div></div>
-          </section>
-        </section>
-
-        <section id="page-versions" class="page">
-          <div class="page-heading-row"><div><div class="eyebrow">VERSION LIBRARY</div><h1>Choose your <em>world.</em></h1><p class="page-subtitle">Official Minecraft versions plus mod-loader builds from their respective sources.</p></div><button id="refreshVersionsBtn" class="secondary-button">↻ Refresh list</button></div>
-          <div class="catalog-layout">
-            <section class="panel catalog-panel">
-              <div class="catalog-toolbar"><label class="search-box"><span>⌕</span><input id="versionSearch" type="search" placeholder="Search versions, e.g. 1.20.1" aria-label="Search versions"></label><span id="catalogResultCount" class="result-count">Loading…</span></div>
-              <div class="catalog-tabs" role="tablist" aria-label="Version category">
-                <button class="catalog-tab active" data-filter="release" role="tab">Release <span id="countRelease">—</span></button>
-                <button class="catalog-tab" data-filter="snapshot" role="tab">Snapshot <span id="countSnapshot">—</span></button>
-                <button class="catalog-tab" data-filter="legacy" role="tab">Legacy <span id="countLegacy">—</span></button>
-                <button class="catalog-tab" data-filter="forge" role="tab">Forge <span id="countForge">—</span></button>
-                <button class="catalog-tab" data-filter="fabric" role="tab">Fabric <span id="countFabric">—</span></button>
-                <button class="catalog-tab" data-filter="optifine" role="tab">OptiFine <span id="countOptifine">—</span></button>
-                <button class="catalog-tab" data-filter="installed" role="tab">Installed <span id="countInstalled">—</span></button>
-              </div>
-              <div id="versionList" class="version-list" role="list" aria-label="Available versions"><div class="empty-state">Loading the official catalog…</div></div>
-              <div class="catalog-footnote"><span>ⓘ</span><span>Vanilla versions download from Mojang. Forge and Fabric installers come from their official projects. OptiFine may require its separate official installer.</span></div>
-            </section>
-            <aside class="version-detail-column">
-              <section class="panel selected-detail-panel">
-                <div class="detail-cover"><div class="cover-sky"></div><div class="cover-sun"></div><div class="cover-mountain one"></div><div class="cover-mountain two"></div><div class="cover-grass"></div><div class="cover-badge">JP</div></div>
-                <div class="detail-body"><div class="eyebrow">SELECTED BUILD</div><h2 id="detailVersionName">Latest Release</h2><p id="detailVersionDescription">Choose a version from the catalog to see its details.</p><div class="detail-meta"><div><span>TYPE</span><strong id="detailVersionType">Release</strong></div><div><span>STATUS</span><strong id="detailVersionStatus">Not installed</strong></div></div><button id="detailActionBtn" class="primary-button full-button" disabled>Choose a version <span>→</span></button><button id="detailOfflineBtn" class="secondary-button full-button cached-play-button" type="button" hidden>Play with saved session</button><button id="detailOpenFolderBtn" class="secondary-button full-button">Open game folder</button><div id="detailExtraNote" class="detail-extra-note">Sign in with Microsoft before launching a game.</div></div>
-              </section>
-              <section class="official-source-card"><div class="source-icon">↗</div><div><strong>Official sources only</strong><p>Version metadata comes from Mojang. Loader installers open their official projects when manual steps are required.</p><button class="text-button" id="openForgeSource">Forge website ↗</button><button class="text-button" id="openFabricSource">Fabric website ↗</button><button class="text-button" id="openOptifineSource">OptiFine website ↗</button></div></section>
-            </aside>
-          </div>
-        </section>
-
-        <section id="page-mods" class="page">
-          <div class="page-heading-row"><div><div class="eyebrow">ADD-ON WORKSPACE</div><h1>Your game, <em>your rules.</em></h1><p class="page-subtitle">Add JAR mods to the selected profile. Mods need a compatible loader such as Forge or Fabric.</p></div><button class="secondary-button" data-open-folder="mods">Open mods folder ↗</button></div>
-          <section class="panel file-manager-panel">
-            <div class="manager-top"><div><div class="eyebrow">MOD LIBRARY</div><h3>Mods for your selected instance</h3><p id="modsInstanceLabel" class="muted-copy">Select a game version to manage its mods.</p></div><button id="addModBtn" class="primary-button">＋ Add .jar mods</button></div>
-            <div class="drop-zone" id="modsDropZone"><div class="drop-icon">✣</div><strong>Keep your favorite add-ons close.</strong><p>Choose one or more <code>.jar</code> files. JustPlay copies them to the shared Mods folder and the selected instance.</p><button id="openInstanceModsBtn" class="text-button">Open selected profile's mods folder ↗</button></div>
-            <div class="file-list-header"><span>FILE</span><span>SIZE</span><span>LOCATION</span><span>ACTION</span></div>
-            <div id="modsFileList" class="asset-list"><div class="empty-state">No mods listed yet.</div></div>
-          </section>
-          <div class="notice-card"><span>✦</span><div><strong>Loader compatibility matters.</strong><p>A Fabric mod usually will not run under Forge (and vice versa). Add mods to a version with the correct loader installed.</p></div></div>
-        </section>
-
-        <section id="page-resourcepacks" class="page">
-          <div class="page-heading-row"><div><div class="eyebrow">VISUAL CUSTOMIZATION</div><h1>Make it <em>feel like yours.</em></h1><p class="page-subtitle">Keep Java Edition resource packs organized by instance.</p></div><button class="secondary-button" data-open-folder="resourcepacks">Open resource packs ↗</button></div>
-          <section class="panel file-manager-panel">
-            <div class="manager-top"><div><div class="eyebrow">RESOURCE PACK LIBRARY</div><h3>A fresh look in a few clicks</h3><p id="packsInstanceLabel" class="muted-copy">Select a game version to manage its resource packs.</p></div><button id="addPackBtn" class="primary-button">＋ Add .zip packs</button></div>
-            <div class="pack-preview-grid"><div class="pack-preview pack-preview-a"><div class="pack-art-sun"></div><div class="pack-art-mountains"></div><div class="pack-art-ground"></div><span>CLASSIC</span></div><div class="pack-preview pack-preview-b"><div class="pack-art-sun"></div><div class="pack-art-mountains"></div><div class="pack-art-ground"></div><span>ADVENTURE</span></div><div class="pack-preview pack-preview-c"><div class="pack-art-sun"></div><div class="pack-art-mountains"></div><div class="pack-art-ground"></div><span>MINIMAL</span></div><div class="pack-preview-copy"><strong>New textures.<br><em>Same world.</em></strong><p>Drop in ZIP packs and enable them from Minecraft's Options → Resource Packs menu.</p></div></div>
-            <div class="file-list-header"><span>FILE</span><span>SIZE</span><span>LOCATION</span><span>ACTION</span></div>
-            <div id="packsFileList" class="asset-list"><div class="empty-state">No resource packs listed yet.</div></div>
-          </section>
-          <div class="notice-card"><span>ⓘ</span><div><strong>Java Edition packs use ZIP files.</strong><p>Do not extract a resource-pack ZIP unless its creator's instructions tell you to.</p></div></div>
-        </section>
-
-        <section id="page-settings" class="page">
-          <div class="page-heading-row"><div><div class="eyebrow">PREFERENCES</div><h1>Your setup, <em>your way.</em></h1><p class="page-subtitle">Local settings for this Windows computer.</p></div></div>
-          <div class="settings-layout">
-            <section class="panel settings-panel"><div class="settings-section-heading"><span class="setting-icon">▣</span><div><h3>Game storage</h3><p>JustPlay chooses the writable drive with the most free space on first setup.</p></div></div><div class="setting-value-row"><div><span class="setting-label">LIBRARY PATH</span><strong id="settingsRootPath">Not set up yet</strong></div><button id="settingsOpenRoot" class="secondary-button">Open folder ↗</button></div><div class="setting-value-row"><div><span class="setting-label">FOLDER STRUCTURE</span><strong>Game Versions · resource packs · mods</strong></div><button id="settingsOpenGame" class="quiet-icon-button" title="Open Game Versions">↗</button></div><div id="diskSummary" class="disk-summary"><span class="status-dot"></span>Storage drive will be selected during setup.</div></section>
-            <section class="panel settings-panel"><div class="settings-section-heading"><span class="setting-icon">▤</span><div><h3>Memory allocation</h3><p>Choose the maximum RAM Minecraft can use. Too much can slow down your computer.</p></div></div><label class="setting-label" for="ramSelect">MAXIMUM MEMORY</label><select id="ramSelect" class="wide-select"><option value="2G">2 GB</option><option value="3G">3 GB</option><option value="4G" selected>4 GB</option><option value="6G">6 GB</option><option value="8G">8 GB</option><option value="12G">12 GB</option><option value="16G">16 GB</option></select><div id="ramSaveState" class="inline-feedback">Applies to future launches.</div></section>
-            <section class="panel settings-panel java-runtime-panel"><div class="settings-section-heading"><span class="setting-icon">⌘</span><div><h3>Java runtime</h3><p>JustPlay searches PATH, JAVA_HOME, common JDK installs and the official Minecraft Launcher runtime folder. It selects a compatible Java major version when you play.</p></div></div><div class="setting-value-row"><div><span class="setting-label">SELECTED RUNTIME</span><strong id="javaRuntimeCurrent">Auto-detecting Java…</strong></div><button id="detectJavaBtn" class="secondary-button" type="button">Auto-detect</button></div><label class="setting-label" for="javaRuntimeSelect">DETECTED JAVA INSTALLATIONS</label><select id="javaRuntimeSelect" class="wide-select"><option value="">Auto-detect compatible runtime</option></select><div id="javaRuntimeFeedback" class="inline-feedback">The runtime may be selected automatically to match each Minecraft version.</div></section>
-            <section class="panel settings-panel skin-sync-panel"><div class="settings-section-heading"><span class="setting-icon">◉</span><div><h3>Minecraft skin sync</h3><p>Sync the active skin for your currently authenticated Minecraft Java profile using the official Minecraft profile service.</p></div></div><div class="skin-sync-content"><div class="skin-texture-frame"><img id="skinTexturePreview" alt="Active Minecraft skin texture" hidden></div><div class="skin-sync-info"><strong id="skinPlayerName">No skin synced yet</strong><p id="skinSyncDetails">Sign in with Microsoft, then sync to preview your active skin texture here.</p><button id="syncSkinBtn" class="primary-button" type="button">Sync my skin</button><div id="skinSyncFeedback" class="inline-feedback" role="status" aria-live="polite"></div></div></div><p class="local-account-privacy">This previews your active skin texture in JustPlay. It does not change your Minecraft account's skin.</p></section>
-            <section class="panel settings-panel security-panel"><div class="settings-section-heading"><span class="setting-icon">◇</span><div><h3>Minecraft account &amp; privacy</h3><p>Use Microsoft sign-in for official Minecraft Java Edition gameplay. JustPlay never asks for your Microsoft password inside its own form.</p></div></div><div class="security-note"><span>✓</span><span>Microsoft login is used to verify the Minecraft profile and access. JustPlay cannot grant a game license or replace Xbox/Minecraft verification.</span></div><div class="setting-value-row"><div><span class="setting-label">MICROSOFT ACCOUNT</span><strong id="settingsAccountName">Not signed in</strong></div><button id="settingsSignInBtn" class="secondary-button">Sign in</button></div><button id="signOutBtn" class="text-button">Sign out of Minecraft session</button></section>
-            <section class="panel settings-panel local-account-panel"><div class="settings-section-heading"><span class="setting-icon">◎</span><div><h3>JustPlay account</h3><p>A username and password for your local launcher profile on this PC. This is separate from Minecraft authentication.</p></div></div><div class="setting-value-row"><div><span class="setting-label">LOCAL JUSTPLAY ACCOUNT</span><strong id="localAccountCurrent">Not signed in</strong></div><button id="signOutLocalAccountBtn" class="secondary-button" type="button" hidden>Sign out</button></div><form id="justplayAccountForm" class="local-account-form"><div class="local-account-fields"><label for="justplayUsername">USERNAME<input id="justplayUsername" name="username" type="text" minlength="3" maxlength="24" autocomplete="username" placeholder="e.g. BlockBuilder" required></label><label for="justplayPassword">PASSWORD<input id="justplayPassword" name="password" type="password" minlength="8" maxlength="256" autocomplete="current-password" placeholder="At least 8 characters" required></label></div><div class="local-account-actions"><button id="createLocalAccountBtn" class="secondary-button" type="button">Create account</button><button class="primary-button" type="submit">Sign in to JustPlay</button></div></form><p class="local-account-privacy">Passwords are stored as salted hashes in this Windows user profile and are not sent to a server. This account does not unlock Minecraft. Saved-session play is available only after a successful Microsoft sign-in and only for already-installed profiles with their client JAR, required libraries, and assets cached locally.</p><div id="localAccountFeedback" class="inline-feedback" role="status" aria-live="polite"></div></section>
-          </div>
-        </section>
-
-        <section id="page-docs" class="page">
-          <div class="page-heading-row"><div><div class="eyebrow">JUSTPLAY GUIDE</div><h1>Start simple. <em>Play more.</em></h1><p class="page-subtitle">Everything you need to set up your game library and keep it tidy.</p></div></div>
-          <section class="panel release-notes-panel">
-            <div class="release-notes-heading"><div><div class="eyebrow">RELEASE NOTES · OCTOBER 2026</div><h2>What’s new in <em>v0.2.3</em></h2></div><span class="release-latest-tag">LATEST</span></div>
-            <p class="release-intro">This release adds Fabric Loader support for compatible Minecraft versions. Java runtime detection, official skin sync, and encrypted saved-session launch remain available.</p>
-            <div class="release-note-grid">
-              <article><span>✣</span><div><strong>Fabric Loader</strong><p>Browse compatible Fabric builds, install the official loader, and launch the resulting profile from JustPlay.</p></div></article>
-              <article><span>⌘</span><div><strong>Java auto-detection</strong><p>Finds installed runtimes and chooses a compatible Java major version for the selected Minecraft version.</p></div></article>
-              <article><span>◉</span><div><strong>Official skin sync</strong><p>Previews the active skin for the authenticated Minecraft Java profile through Minecraft’s profile service.</p></div></article>
-              <article><span>▣</span><div><strong>Saved-session play</strong><p>Offers a short-lived, OS-encrypted previously authenticated session for already-installed profiles without inventing tokens or bypassing ownership checks.</p></div></article>
-            </div>
-            <p class="release-migration-note"><strong>Upgrading?</strong> v0.2.1 users can install v0.2.3 through the in-app updater. v0.1.1 users must install v0.2.0 once manually first.</p>
-          </section>
-          <div class="docs-grid">
-            <article class="panel doc-card"><div class="doc-number">01</div><h3>Set up your folders</h3><p>On first launch, choose a player display name and press Set up JustPlay. The app checks local drives for free space and creates a JustPlay folder on the drive with the most available space it can write to.</p><button class="text-button" data-page="settings">View storage settings ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">02</div><h3>Choose the right account</h3><p>Sign into your local JustPlay profile at startup or continue as a guest. To start official Minecraft Java Edition, use Microsoft sign-in with an account that has Java Edition access.</p><button class="text-button" id="docsSignInBtn">Sign in with Microsoft ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">03</div><h3>Install a version</h3><p>Choose an official Release or Snapshot. Press Install &amp; play. The first run downloads files from official sources; later launches use the installed profile. JustPlay auto-detects Java runtimes and picks a compatible major version.</p><button class="text-button" data-page="versions">Browse versions ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">04</div><h3>Forge, Fabric &amp; OptiFine</h3><p>Forge and Fabric use their official installers. Select a Fabric build in the version library and press Install Fabric &amp; play. OptiFine still uses its official website and separate installer flow; follow its instructions and select the result under Installed.</p><div class="doc-link-row"><button class="text-button" id="docsForgeBtn">Forge ↗</button><button class="text-button" id="docsOptifineBtn">OptiFine ↗</button></div></article>
-            <article class="panel doc-card"><div class="doc-number">05</div><h3>Add mods</h3><p>Use a mod loader profile, then add JAR files in Mods. JustPlay copies each file to the shared staging folder and the selected profile's mods directory. Only install mods you trust and that match your loader and game version.</p><button class="text-button" data-page="mods">Open Mods ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">06</div><h3>Add resource packs</h3><p>Add Java resource packs as ZIP files. Open Minecraft and enable them under Options → Resource Packs. Bedrock-only .mcpack files and shader packs are not automatically installed by this initial build.</p><button class="text-button" data-page="resourcepacks">Open Resource Packs ↗</button></article>
-          </div>
-          <div class="notice-card"><span>!</span><div><strong>Troubleshooting</strong><p>For Java errors, use Settings → Java Runtime → Auto-detect. For skin sync, sign in with Microsoft first. Saved-session play uses only a recent encrypted session from a previous successful Minecraft authentication and requires local game files to be complete. For sign-in errors, check your Microsoft account, game ownership and network. For Forge or Fabric problems, check the launch log and confirm your loader, Minecraft version, Java runtime, and mods are compatible.</p><button class="text-button" id="docsJavaBtn">Find Java downloads ↗</button></div></div>
-        </section>
-
-        <footer class="app-footer"><span>JUSTPLAY <span class="footer-separator">/</span> JAVA EDITION LAUNCHER</span><span>Unofficial community project. Not affiliated with Mojang or Microsoft.</span></footer>
-      </div>
-    </main>
-  </div>
-
-  <div id="localLoginOverlay" class="modal-backdrop account-gate-backdrop">
-    <section class="setup-modal account-gate" role="dialog" aria-modal="true" aria-labelledby="accountGateTitle">
-      <div class="setup-mark"><div class="brand-mark large-mark"><span></span><span></span><span></span><span></span></div></div>
-      <div class="eyebrow"><span class="eyebrow-dot"></span> YOUR JUSTPLAY PROFILE</div>
-      <h2 id="accountGateTitle">Welcome to <em>JustPlay.</em></h2>
-      <p class="setup-copy">Sign in to your local JustPlay account or make one in a few seconds. Your profile is separate from Minecraft authentication.</p>
-      <form id="accountGateForm">
-        <label for="gateUsername">USERNAME</label>
-        <input id="gateUsername" name="username" type="text" minlength="3" maxlength="24" placeholder="e.g. BlockBuilder" autocomplete="username" required>
-        <label for="gatePassword" class="gate-password-label">PASSWORD</label>
-        <input id="gatePassword" name="password" type="password" minlength="8" maxlength="256" placeholder="Your JustPlay password" autocomplete="current-password" required>
-        <div class="local-account-actions gate-actions">
-          <button id="gateCreateBtn" class="secondary-button" type="button">Create account</button>
-          <button id="gateSignInBtn" class="primary-button" type="submit">Sign in <span>→</span></button>
+      <section class="view active" id="viewDiscover">
+        <div class="page-heading">
+          <div><div class="eyebrow"><span class="eyebrow-line"></span> THE NEXT ADVENTURE</div><h1>Find your <em>next world.</em></h1><p class="page-subtitle">Your favorite Roblox experiences, all in one place.</p></div>
+          <button id="refreshGamesBtn" class="button button-outline refresh-button"><span>↻</span> Refresh games</button>
         </div>
-      </form>
-      <div id="accountGateFeedback" class="error-message gate-feedback" role="status" aria-live="polite" hidden></div>
-      <div class="gate-divider"><span>OR</span></div>
-      <button id="gateGuestBtn" class="secondary-button full-button" type="button">Continue as guest</button>
-      <p class="setup-legal">JustPlay accounts are stored on this PC and do not unlock Minecraft. Official gameplay may require Microsoft sign-in with an account that has Java Edition access.</p>
+        <section class="spotlight" id="spotlightCard">
+          <div class="spotlight-backdrop" id="spotlightBackdrop"></div>
+          <div class="spotlight-content">
+            <div class="spotlight-pill"><span class="status-pulse"></span> FEATURED EXPERIENCE</div>
+            <p class="spotlight-overline">YOUR NEXT OBSESSION</p>
+            <h2 id="spotlightTitle">Discover something new.</h2>
+            <p id="spotlightDescription">Explore some of the most-loved Roblox experiences and jump right in.</p>
+            <div class="spotlight-actions"><button id="spotlightPlayBtn" class="button button-primary" disabled>Play now <span>→</span></button><button id="spotlightExploreBtn" class="button button-glass">Explore games <span>⌄</span></button></div>
+          </div>
+          <div class="spotlight-art"><img id="spotlightImage" alt="" hidden><div class="spotlight-art-placeholder"><span>◩</span></div></div>
+          <div class="spotlight-index">JP <span> / </span> 001</div>
+        </section>
+
+        <div class="games-toolbar">
+          <div class="games-toolbar-heading"><h2 id="gamesSectionTitle">Popular right now</h2><span id="gamesResultCount" class="result-count">Loading experiences…</span></div>
+          <div class="search-wrap"><span class="search-icon">⌕</span><input id="gameSearchInput" type="search" placeholder="Search Roblox experiences…" aria-label="Search Roblox experiences"><kbd>ENTER</kbd><button id="clearSearchBtn" title="Clear search" hidden>×</button></div>
+        </div>
+        <div id="gamesGrid" class="games-grid" aria-live="polite"><div class="loading-grid"><span class="loading-spinner"></span><strong>Finding your next game…</strong><p>Getting experience cards ready.</p></div></div>
+        <div class="catalog-bottom-row"><span id="catalogSourceNote">Experience details and icons come from Roblox services.</span><button id="loadMoreBtn" class="text-button" hidden>Load more experiences ↓</button></div>
+      </section>
+
+      <section class="view" id="viewFavorites">
+        <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> YOUR PERSONAL COLLECTION</div><h1>Saved for <em>later.</em></h1><p class="page-subtitle">The experiences you want one click away.</p></div><button id="backToDiscoverBtn" class="button button-outline">Discover games <span>→</span></button></div>
+        <div id="favoritesGrid" class="games-grid"><div class="loading-grid"><span class="loading-spinner"></span><strong>Loading favorites…</strong></div></div>
+        <div id="favoritesEmpty" class="empty-panel" hidden><div class="empty-heart">♡</div><h2>Your next favorite is out there.</h2><p>Tap the heart on any game card to save it here. Your collection stays on this PC.</p><button id="favoritesDiscoverBtn" class="button button-primary">Explore games <span>→</span></button></div>
+      </section>
+
+      <footer class="app-footer"><span><span class="footer-mark">◩</span> JUSTPLAY <b>·</b> ROBLOX EDITION</span><span>Game sessions open in the official Roblox client. <a href="https://www.roblox.com/" id="footerRobloxLink">roblox.com ↗</a></span></footer>
+    </main>
+  </section>
+
+  <div id="settingsOverlay" class="modal-overlay" hidden>
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> YOUR PREFERENCES</div><h2 id="settingsTitle">Launcher settings</h2><p>Connect a Roblox profile and adjust how JustPlay opens experiences.</p></div><button id="closeSettingsBtn" class="modal-close" title="Close settings">×</button></div>
+      <div class="settings-section account-settings-section">
+        <div class="settings-section-icon">◩</div><div class="settings-section-body"><h3>Roblox account</h3><p id="settingsProfileStatus">No Roblox profile connected to JustPlay.</p><div class="settings-account-row"><div class="settings-avatar"><img id="settingsAvatar" alt="" hidden><span id="settingsAvatarFallback">J</span></div><div class="settings-account-copy"><strong id="settingsDisplayName">Not connected</strong><span id="settingsUsername">@not_connected</span></div><button id="settingsSignInBtn" class="button button-outline">Connect</button><button id="settingsSignOutBtn" class="button button-quiet" hidden>Disconnect</button></div></div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-icon">⌑</div><div class="settings-section-body"><h3>Secure profile sign-in</h3><p>Configure a Roblox OAuth app so JustPlay can verify your profile through Roblox's own authorization page. Use the public Client ID only—never paste a Roblox password or client secret here.</p><label for="settingsClientIdInput" class="input-label">OAUTH CLIENT ID</label><input id="settingsClientIdInput" type="text" spellcheck="false" autocomplete="off" placeholder="Public Roblox OAuth Client ID"><div class="redirect-uri-row settings-redirect"><span>REDIRECT URI</span><code id="settingsRedirectUri">http://127.0.0.1:53682/callback</code><button id="settingsCopyRedirectBtn" type="button">Copy</button></div><div class="settings-inline-actions"><button id="saveSettingsClientIdBtn" class="button button-primary">Save Client ID</button><button id="settingsOAuthDashboardBtn" class="text-button">Creator Dashboard ↗</button></div><p class="micro-note">Register this exact redirect URI under your app in Creator Dashboard. Roblox OAuth registration may require an ID-verified creator account. OAuth verifies the profile only; the official Roblox client still manages gameplay authentication.</p></div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-icon">↗</div><div class="settings-section-body"><h3>Game launching</h3><p>JustPlay sends the selected place ID to the official Roblox app using its supported deep link. If the app is missing, the game page opens in your browser.</p><div class="settings-inline-actions"><button id="settingsOpenRobloxBtn" class="button button-outline">Open Roblox app</button><button id="settingsRobloxWebsiteBtn" class="text-button">Roblox website ↗</button></div></div>
+      </div>
+      <div id="settingsFeedback" class="feedback" role="status" aria-live="polite"></div>
+      <div class="modal-footer"><span>JustPlay for Roblox · v0.3.0</span><button id="settingsDoneBtn" class="button button-primary">Done</button></div>
     </section>
   </div>
 
-  <div id="setupOverlay" class="modal-backdrop setup-backdrop" hidden>
-    <section class="setup-modal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
-      <div class="setup-mark"><div class="brand-mark large-mark"><span></span><span></span><span></span><span></span></div></div>
-      <div class="eyebrow">FIRST-TIME SETUP</div>
-      <h2 id="setupTitle">Welcome to <em>JustPlay.</em></h2>
-      <p class="setup-copy">Let's get your launcher ready. We'll find the drive with the most free space and create your library folders there.</p>
-      <form id="setupForm">
-        <label for="setupName">PLAYER DISPLAY NAME</label>
-        <input id="setupName" name="displayName" type="text" maxlength="16" minlength="2" placeholder="e.g. BlockBuilder" required autocomplete="nickname">
-        <div class="setup-info-row"><span class="setup-info-icon">▣</span><div><strong>Automatic storage selection</strong><span id="setupDiskPreview">Checking your available drives…</span></div></div>
-        <div class="setup-folder-preview"><span>📁 Game Versions</span><span>📁 resource packs</span><span>📁 mods</span></div>
-        <button id="setupSubmitBtn" class="primary-button full-button" type="submit">Set up JustPlay <span>→</span></button>
-      </form>
-      <p class="setup-legal">For Minecraft Java Edition accounts. JustPlay never needs your Microsoft password inside its own form.</p>
-      <div id="setupError" class="error-message" role="alert" hidden></div>
-    </section>
-  </div>
-
-  <div id="messageToast" class="toast" role="status" aria-live="polite"><span class="toast-mark">✦</span><span id="toastText">Ready.</span><button id="toastClose" aria-label="Dismiss message">×</button></div>
-  <div id="progressOverlay" class="progress-overlay" hidden><div class="progress-card"><div class="progress-spinner"></div><div><strong id="progressTitle">Preparing Minecraft…</strong><p id="progressMessage">Getting things ready.</p><div class="progress-track"><div id="progressBar" class="progress-bar"></div></div><span id="progressPercent" class="progress-percent">0%</span></div></div></div>
+  <div id="launchToast" class="launch-toast" role="status" aria-live="polite"><span class="toast-icon">↗</span><div><strong id="toastTitle">Opening Roblox…</strong><span id="toastMessage">Handing this experience to the Roblox app.</span></div><button id="toastCloseBtn" title="Dismiss">×</button></div>
   <script src="renderer.js"></script>
 </body>
 </html>
