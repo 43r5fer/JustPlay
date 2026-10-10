@@ -31,11 +31,16 @@ jobs:
       - name: Build Windows installer
         run: npm run dist:win
 
+      - name: Generate update metadata
+        run: node scripts/write-update-manifest.cjs
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: JustPlay-Windows-Installer
-          path: dist/JustPlay.exe
+          path: |
+            dist/JustPlay.exe
+            dist/latest.yml
           if-no-files-found: error
           retention-days: 30
 
