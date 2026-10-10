@@ -97,7 +97,11 @@ async function writeSession(app, safeStorage, session) {
 }
 async function getState(app, safeStorage) {
   const config = await readConfig(app);
-  const session = await readSession(app, safeStorage);
+  const loadedSession = await readSession(app, safeStorage);
+  const session = loadedSession && loadedSession.clientId === config.clientId ? loadedSession : null;
+  if (loadedSession && !session) {
+    try { await fs.unlink(sessionPath(app)); } catch {}
+  }
   return {
     configured: Boolean(config.clientId),
     clientId: config.clientId,
@@ -108,9 +112,12 @@ async function getState(app, safeStorage) {
   };
 }
 async function requestJson(url, options = {}) {
+  const requestOptions = { ...options };
+  const timeout = requestOptions.timeout || 15000;
+  delete requestOptions.timeout;
   const response = await fetch(url, {
-    ...options,
-    signal: AbortSignal.timeout(options.timeout || 15000),
+    ...requestOptions,
+    signal: AbortSignal.timeout(timeout),
     headers: {
       'Accept': 'application/json',
       'User-Agent': 'JustPlay-Roblox-Launcher/0.3.0',
@@ -196,7 +203,7 @@ function waitForOAuthCallback(shell, authorizeUrl, expectedState) {
       finish(null, code);
     });
     server.on('error', error => finish(new Error('Could not open the local Roblox sign-in callback (' + error.message + '). Check whether port 53682 is already in use.')));
-    server.listen(53682, '127.0.0.1', async () => {
+    server.listen(53682, 'localhost', async () => {
       try {
         await shell.openExternal(authorizeUrl);
       } catch (error) {
@@ -445,6 +452,9 @@ function registerRobloxIpc({ ipcMain, app, shell, safeStorage }) {
     if (!clean) throw new Error('Enter the Roblox OAuth Client ID shown in Creator Dashboard.');
     const previous = await readConfig(app);
     await writeConfig(app, { clientId: clean });
+    if (previous.clientId && previous.clientId !== clean) {
+      try { await fs.unlink(sessionPath(app)); } catch {}
+    }
     return { ok: true, state: await getState(app, safeStorage), changed: previous.clientId !== clean };
   });
   ipcMain.handle('roblox:open-oauth-dashboard', async () => {
