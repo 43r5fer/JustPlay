@@ -79,6 +79,60 @@ async function handleUpdateAction() {
   }
 }
 
+function showAccountGateFeedback(message, kind = 'error') {
+  const feedback = $('accountGateFeedback');
+  feedback.textContent = message || '';
+  feedback.hidden = !message;
+  feedback.classList.toggle('is-error', kind === 'error');
+  feedback.classList.toggle('is-success', kind === 'success');
+}
+
+function enterLauncher(sessionType, username = '') {
+  if (!appState) {
+    showAccountGateFeedback('JustPlay could not load your local settings. Restart the app and try again.');
+    return;
+  }
+  appState.localAccountName = sessionType === 'local' ? username : '';
+  $('localLoginOverlay').hidden = true;
+  renderHeader();
+  renderSettings();
+  if (!appState.setupComplete) {
+    $('setupOverlay').hidden = false;
+    previewDiskChoice();
+  } else {
+    $('setupOverlay').hidden = true;
+  }
+  if (sessionType === 'guest') {
+    showToast('Continuing as guest. Microsoft sign-in may still be required to launch Minecraft.');
+  } else {
+    showToast(`Welcome to JustPlay, ${username}!`);
+  }
+}
+
+async function submitAccountGate(action) {
+  const username = $('gateUsername').value;
+  const password = $('gatePassword').value;
+  const signInButton = $('gateSignInBtn');
+  const createButton = $('gateCreateBtn');
+  signInButton.disabled = true;
+  createButton.disabled = true;
+  showAccountGateFeedback('', 'success');
+  try {
+    const result = action === 'create'
+      ? await api.createLocalAccount(username, password)
+      : await api.signInLocalAccount(username, password);
+    appState = result.state || await api.getState();
+    $('gatePassword').value = '';
+    showAccountGateFeedback('', 'success');
+    enterLauncher('local', result.localAccountName || username.trim());
+  } catch (error) {
+    showAccountGateFeedback(error.message || (action === 'create' ? 'Could not create your JustPlay account.' : 'Could not sign in.'));
+  } finally {
+    signInButton.disabled = false;
+    createButton.disabled = false;
+  }
+}
+
 function goTo(page) {
   if (!document.getElementById(`page-${page}`)) return;
   activePage = page;
@@ -400,6 +454,13 @@ async function previewDiskChoice() {
 function bindEvents() {
   document.querySelectorAll('[data-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.page)));
   document.querySelectorAll('[data-open-folder]').forEach(el => el.addEventListener('click', () => openFolder(el.dataset.openFolder)));
+  $('accountGateForm').addEventListener('submit', event => {
+    event.preventDefault();
+    submitAccountGate('sign-in');
+  });
+  $('gateCreateBtn').addEventListener('click', () => submitAccountGate('create'));
+  $('gateGuestBtn').addEventListener('click', () => enterLauncher('guest'));
+
   $('signInBtn').addEventListener('click', signInFlow);
   $('settingsSignInBtn').addEventListener('click', signInFlow);
   $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
@@ -531,12 +592,11 @@ async function init() {
   try {
     appState = await api.getState();
     renderHeader(); renderSettings();
-    if (!appState.setupComplete) {
-      $('setupOverlay').hidden = false;
-      previewDiskChoice();
-    } else {
-      $('setupOverlay').hidden = true;
-    }
+    // Every app launch starts at the JustPlay account gate. A guest may continue without
+    // creating a local account; gameplay authentication remains separate.
+    $('setupOverlay').hidden = true;
+    $('localLoginOverlay').hidden = false;
+    if (!appState.setupComplete) previewDiskChoice();
   } catch (error) { showToast(error.message || 'Could not read JustPlay settings.', 'error'); }
   await refreshCatalog({ silent: true });
 }
