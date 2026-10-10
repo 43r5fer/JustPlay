@@ -1,42 +1,26 @@
 # JustPlay public launch checklist
 
 ## Completed automatically
-- [x] Public repository created and populated: https://github.com/43r5fer/JustPlay
-- [x] Desktop launcher source committed to `main`
-- [x] Static landing page added in `site/`
-- [x] Windows installer built by GitHub Actions
-- [x] Public release `v0.1.0` published with `JustPlay.exe`
-- [x] Public hotfix release `v0.1.1` published with improved Microsoft auth diagnostics
-- [x] Release `v0.2.0` published with the in-app updater and local launcher accounts
-- [x] Release `v0.2.1` published with the dedicated JustPlay login screen and guest mode
-- [x] Release `v0.2.2` published with Java auto-detection, authenticated skin sync, and encrypted saved-session play
-- [x] Release `v0.2.3` published with official Fabric Loader installation and launch support
-- [x] JavaScript syntax check passed and Windows installer build succeeded for `v0.2.3`
-- [x] Release includes `JustPlay.exe` and `latest.yml` update metadata
-- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0, v0.2.1 and v0.2.2 can update in-app
-- [x] Release download URL verified in GitHub release metadata
+- [x] Public repository: https://github.com/43r5fer/JustPlay
+- [x] Roblox launcher UI committed to \`main\`
+- [x] Roblox game discovery/search and one-click \`roblox://placeId=\` launch support implemented
+- [x] Optional Roblox OAuth profile sign-in uses PKCE and encrypted OS-backed token storage
+- [x] Local favorites and game-card UI implemented
+- [ ] Verify OAuth Client ID and redirect URI against the actual Roblox Creator Dashboard app configuration
+- [ ] End-to-end test sign-in, search, thumbnails, favorites, and launch on a clean Windows 10/11 device
+- [ ] Check installed Roblox desktop client behavior and browser fallback on a machine with Roblox installed
+- [ ] Run \`npm run check\` and build the Windows installer in CI before distributing v0.3.0
 
-## One required repository setting for the website
-1. Open <https://github.com/43r5fer/JustPlay/settings/pages>.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. Open <https://github.com/43r5fer/JustPlay/actions/workflows/deploy-pages.yml> and choose **Run workflow**.
-4. After the workflow succeeds, check <https://43r5fer.github.io/JustPlay/>.
+## Roblox OAuth setup
+1. Register an OAuth 2.0 app in https://create.roblox.com/dashboard/credentials (account verification may be required).
+2. Add the identity scopes \`openid\` and \`profile\`.
+3. Register redirect URL \`http://localhost:53682/callback\`.
+4. Enter the app's public Client ID in JustPlay. Do not enter a client secret or Roblox password.
+5. Submit/publish the OAuth app through Roblox review if it needs to be available beyond private testing limits.
 
-The connected GitHub tooling cannot turn GitHub Pages on for the repository; this setting must be selected by the repo owner.
+Roblox OAuth identifies the profile in JustPlay; it does not log the user into the Roblox desktop app. Gameplay authentication remains the responsibility of the official Roblox client.
 
 ## Downloads
-- Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.3>
-- Changelog: <https://github.com/43r5fer/JustPlay/blob/main/CHANGELOG.md>
-- Public repository: <https://github.com/43r5fer/JustPlay>
-
-## Before broader promotion
-- [ ] Test installation and uninstall on a clean Windows 10/11 PC.
-- [ ] Confirm Start Menu search finds JustPlay after installation.
-- [ ] Test supported Minecraft release and snapshot installs with a licensed account.
-- [ ] Test Fabric and Forge profile installation/launch on a Windows 10/11 machine.
-- [ ] Test mods/resource packs and loader-specific profiles with compatible versions.
-- [ ] Consider code-signing the installer; this current community build is unsigned and Windows may warn about unknown publisher.
-- [ ] Review third-party dependency audit output and keep dependencies updated.
-
-JustPlay is independent and not affiliated with Mojang or Microsoft. A local display name is not Minecraft account authentication; valid Minecraft Java access is required to launch the game. A local JustPlay username/password account only signs into the local launcher profile and does not bypass game ownership checks. Saved-session play reuses a recent OS-encrypted session from a previously successful Microsoft/Minecraft sign-in and requires already-installed local game files.
+- Latest installer: https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe
+- Latest release: https://github.com/43r5fer/JustPlay/releases/tag/v0.3.0
+- Source repository: https://github.com/43r5fer/JustPlay
