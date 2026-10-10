@@ -13,11 +13,11 @@
 - [x] Installable PWA manifest, icon and service worker created
 - [x] Desktop update prompt connected to electron-updater
 - [x] Android update prompt and Google Play in-app update bridge added
-- [x] Flock v1.0.2 release published with updated Windows installer and Android test APK
+- [x] Flock v1.0.3 release published with updated Windows installer and Android test APK
 - [ ] Add release-signing secrets and build the signed Play Store App Bundle
 - [x] Android target/compile SDK set to API 36
 - [ ] Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD secrets to build a signed Play Store AAB
-- [x] Build and verify the combined Windows/Android v1.0.2 workflow (both builds and release publication succeeded)
+- [x] Build and verify the combined Windows/Android v1.0.3 workflow (both builds and release publication succeeded)
 - [ ] Install the APK on a real Android device
 - [ ] Test email confirmation and password recovery flows using configured Supabase Auth settings
 - [ ] Test friend requests, direct messages, realtime sent/read ticks, message edit/delete, media uploads and status expiry
@@ -26,8 +26,14 @@
 
 ## Release assets
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
-- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.2
-- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.2.zip
+- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.3
+- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.3.zip
 - Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Website: https://43r5fer.github.io/JustPlay/
+
+- [x] Deploy Flock-owned username/password Edge Function.
+- [x] Add PBKDF2 password hash storage, hashed revocable sessions and login throttling.
+- [x] Add Remember me persistence and password change settings.
+- [x] Switch RLS identity from auth.uid() to validated Flock session headers.
+- [ ] Build and verify Flock v1.0.3; configure Android upload key before Play Store AAB.
