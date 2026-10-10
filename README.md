@@ -36,7 +36,7 @@ If `npm` is “not recognized”, Node.js is missing or its PATH update has not 
 
 ## Publish the public website and Windows installer with GitHub
 
-This project expects the public repository name `43r5fer/JustPlay`, because the site’s Download buttons point to its latest Release asset. The GitHub account connected in the authoring environment did not have a `JustPlay` repository, and the available connector cannot create repositories. Create a **new public repository named `JustPlay`** on GitHub, then upload/push the contents of this folder to its `main` branch.
+The public repository is `43r5fer/JustPlay`. The launcher source and landing page are committed to `main`. The first Windows installer has been built and published as Release `v0.1.0`.
 
 ### Publish the website
 
@@ -55,7 +55,8 @@ This project expects the public repository name `43r5fer/JustPlay`, because the 
    ```
 
 2. The **Build and release JustPlay for Windows** workflow builds the NSIS installer on a Windows runner and attaches `JustPlay.exe` to the GitHub Release.
-3. The website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`; this link only works after the first tagged release completes successfully.
+3. The current public installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.1.0/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
+4. To publish future website updates, ensure Settings → Pages uses GitHub Actions, then open Actions → Publish JustPlay website to GitHub Pages → Run workflow if a push does not trigger it.
 4. The Windows installer creates a Start Menu shortcut named **JustPlay** and a desktop shortcut, so Windows Search can find the installed app.
 
 You can also run the build workflow manually to test the build artifact before creating a version tag. Manually triggered builds upload an Actions artifact but do not publish a Release unless they run on a `v*` tag.
@@ -97,7 +98,7 @@ Only install add-ons from sources you trust. This app does not verify the safety
 - The Microsoft authentication dependency is an external open-source library; its compatibility depends on Microsoft's current sign-in policies. Authentication failures are shown in the UI rather than bypassed.
 - Forge and OptiFine support varies by release. OptiFine still requires its official installer workflow.
 - This project has not been signed or independently audited, and this container cannot provide a production code-signing certificate.
-- The website download link points to the latest GitHub Release asset. It returns a 404 until the first tagged Windows build has created a release containing `JustPlay.exe`.
+- The website download link points to the latest GitHub Release asset and now has a published v0.1.0 installer. The landing page itself still needs GitHub Pages enabled in repository Settings before the public site URL will serve it.
 
 ## Legal / project status
 
