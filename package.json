@@ -1,6 +1,6 @@
 {
   "name": "flock-messenger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Flock — cross-platform messaging for your people",
   "main": "electron/main.cjs",
   "author": "Flock contributors",
