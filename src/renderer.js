@@ -1132,6 +1132,19 @@ async function viewStatus(index) {
   if (index < 0 || index >= statuses.length) return;
   openedStatusIndex = index;
   const s = statuses[index];
+  if (s.user_id !== user.id) {
+    try {
+      const { data: alreadyViewed, error: checkError } = await db.from('flock_status_views')
+        .select('status_id').eq('status_id', s.id).eq('viewer_id', user.id).maybeSingle();
+      if (checkError) throw checkError;
+      if (!alreadyViewed) {
+        const { error } = await db.from('flock_status_views').insert({ status_id: s.id, viewer_id: user.id });
+        if (error && error.code !== '23505') throw error;
+      }
+    } catch (error) {
+      console.warn('[Flock] Status view could not be recorded:', error.message);
+    }
+  }
   let media = '';
   if (s.media_path) {
     const url = await getSignedUrl(s.media_path).catch(() => '');
@@ -1356,8 +1369,10 @@ async function signOut() {
   friendRequests = [];
   if (realtimeChannel) db.removeChannel(realtimeChannel);
   if (presenceChannel) db.removeChannel(presenceChannel);
+  if (authSubscription) db.removeChannel(authSubscription);
   realtimeChannel = null;
   presenceChannel = null;
+  authSubscription = null;
   signedUrlCache.clear();
   showAuthScreen(false);
   toast('Signed out', 'Your Flock messages remain synced to your account.');
@@ -1449,8 +1464,23 @@ function bindEvents() {
   $('emptyNewGroupBtn').addEventListener('click', () => createGroup().catch(err => toast('Could not create group', err.message, true)));
   $('copyFriendCodeBtn').addEventListener('click', async () => {
     if (!profile) return;
-    try { await navigator.clipboard.writeText(profile.friend_code); toast('Friend code copied', 'Share it with a person you trust.'); }
-    catch { toast('Your friend code', profile.friend_code); }
+    const value = profile.friend_code;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast('Friend code copied', 'Share it with a person you trust.');
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      let copied = false;
+      try { copied = document.execCommand('copy'); } catch {}
+      area.remove();
+      toast(copied ? 'Friend code copied' : 'Your friend code', copied ? 'Share it with a person you trust.' : value, !copied);
+    }
   });
   $('profileOpenBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
   $('openSettingsBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
