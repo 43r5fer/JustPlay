@@ -38,7 +38,8 @@
         "nsis"
       ],
       "artifactName": "JustPlay.${ext}",
-      "icon": "assets/justplay.ico"
+      "icon": "assets/justplay.ico",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
