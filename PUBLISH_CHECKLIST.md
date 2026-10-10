@@ -10,9 +10,10 @@
 - [x] Release `v0.2.0` published with the in-app updater and local launcher accounts
 - [x] Release `v0.2.1` published with the dedicated JustPlay login screen and guest mode
 - [x] Release `v0.2.2` published with Java auto-detection, authenticated skin sync, and encrypted saved-session play
-- [x] JavaScript syntax check passed and Windows installer build succeeded for `v0.2.2`
+- [x] Release `v0.2.3` published with official Fabric Loader installation and launch support
+- [x] JavaScript syntax check passed and Windows installer build succeeded for `v0.2.3`
 - [x] Release includes `JustPlay.exe` and `latest.yml` update metadata
-- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0 and v0.2.1 can update in-app
+- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0, v0.2.1 and v0.2.2 can update in-app
 - [x] Release download URL verified in GitHub release metadata
 
 ## One required repository setting for the website
@@ -25,7 +26,7 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 
 ## Downloads
 - Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.2>
+- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.3>
 - Changelog: <https://github.com/43r5fer/JustPlay/blob/main/CHANGELOG.md>
 - Public repository: <https://github.com/43r5fer/JustPlay>
 
@@ -33,6 +34,7 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 - [ ] Test installation and uninstall on a clean Windows 10/11 PC.
 - [ ] Confirm Start Menu search finds JustPlay after installation.
 - [ ] Test supported Minecraft release and snapshot installs with a licensed account.
+- [ ] Test Fabric and Forge profile installation/launch on a Windows 10/11 machine.
 - [ ] Test mods/resource packs and loader-specific profiles with compatible versions.
 - [ ] Consider code-signing the installer; this current community build is unsigned and Windows may warn about unknown publisher.
 - [ ] Review third-party dependency audit output and keep dependencies updated.
