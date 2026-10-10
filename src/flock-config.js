@@ -2,7 +2,8 @@
 
 /*
  * Public Supabase browser configuration for Flock.
- * The publishable key is designed for client use. Security is enforced by Auth and RLS.
+ * The publishable key is designed for client use. Flock authenticates with its own sessions;
+ * database row access is validated by the x-flock-session header and RLS.
  * Never place a Supabase service_role/secret key in this file.
  */
 window.FLOCK_CONFIG = Object.freeze({
