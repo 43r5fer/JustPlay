@@ -1546,6 +1546,9 @@ function subscribeGlobal() {
 }
 async function initialize() {
   bindEvents();
+  if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  }
   if (!db) {
     showAuthScreen(false);
     feedback('authFeedback','Flock cannot connect because Supabase configuration is missing. Check src/flock-config.js.',true);
