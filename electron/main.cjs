@@ -809,6 +809,55 @@ async function downloadForgeInstaller(fullVersion) {
   return { file, mcVersion: match[1], loaderVersion: match[2] };
 }
 
+async function assertCachedProfileReady(instanceRoot, selectedVersionId) {
+  const versionsDir = path.join(instanceRoot, 'versions');
+  const seen = new Set();
+  const chain = [];
+  let nextId = String(selectedVersionId || '');
+  for (let depth = 0; depth < 8 && nextId && !seen.has(nextId); depth++) {
+    seen.add(nextId);
+    const file = path.join(versionsDir, nextId, nextId + '.json');
+    let metadata;
+    try { metadata = JSON.parse(await fsp.readFile(file, 'utf8')); } catch {
+      if (depth === 0) throw new Error('This profile is not fully installed locally yet. Connect to the internet and install it before using saved-session play.');
+      break;
+    }
+    chain.push({ id: nextId, metadata });
+    nextId = String(metadata.inheritsFrom || '');
+  }
+  if (!chain.length) throw new Error('Saved-session play requires the selected version metadata to be installed locally.');
+
+  let jarAvailable = false;
+  for (const item of chain) {
+    const jarFile = path.join(versionsDir, item.id, item.id + '.jar');
+    try { await fsp.access(jarFile); jarAvailable = true; break; } catch {}
+  }
+  if (!jarAvailable) {
+    throw new Error('The Minecraft client JAR is missing from this install. Launch this version online once to complete its files, then retry saved-session play.');
+  }
+
+  const assetRef = chain.map(item => item.metadata.assetIndex && item.metadata.assetIndex.id || item.metadata.assets).find(Boolean);
+  if (assetRef) {
+    const indexFile = path.join(instanceRoot, 'assets', 'indexes', String(assetRef) + '.json');
+    let assetIndex;
+    try { assetIndex = JSON.parse(await fsp.readFile(indexFile, 'utf8')); } catch {
+      throw new Error('The local Minecraft asset index is missing. Connect to the internet and launch this version once before using saved-session play.');
+    }
+    const objects = Object.values(assetIndex.objects || {}).filter(item => item && typeof item.hash === 'string');
+    const objectRoot = path.join(instanceRoot, 'assets', 'objects');
+    for (let start = 0; start < objects.length; start += 128) {
+      const chunk = objects.slice(start, start + 128);
+      const existing = await Promise.all(chunk.map(async item => {
+        try { await fsp.access(path.join(objectRoot, item.hash.slice(0, 2), item.hash)); return true; }
+        catch { return false; }
+      }));
+      if (existing.some(ok => !ok)) {
+        throw new Error('Some Minecraft assets are not cached locally. Connect to the internet and launch this version once before using saved-session play.');
+      }
+    }
+  }
+}
+
 async function launchMinecraft(entry, mode = 'online') {
   const launchMode = mode === 'cached' ? 'cached' : 'online';
   const cached = launchMode === 'cached' ? getValidCachedMinecraftSession() : null;
@@ -874,6 +923,8 @@ async function launchMinecraft(entry, mode = 'online') {
     gameVersionId = String(entry.id);
     versionOptions = { number: String(entry.id), type: String(entry.type || 'release') };
   }
+
+  if (launchMode === 'cached') await assertCachedProfileReady(instanceRoot, versionOptions.custom || gameVersionId);
 
   // Copy staged assets into the selected per-version instance, without overwriting existing per-instance files.
   await syncStagedAssets(state.rootPath, instanceRoot, 'mods', '.jar');
