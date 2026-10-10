@@ -167,6 +167,8 @@ async function refreshProfile() {
   if (error) throw error;
   if (!data) throw new Error('Your Flock profile is still being created. Please refresh in a moment.');
   profile = data;
+  if (profile.avatar_path) await getSignedUrl(profile.avatar_path).catch(() => '');
+  if (profile.background_path) await getSignedUrl(profile.background_path).catch(() => '');
   renderProfile();
   return profile;
 }
