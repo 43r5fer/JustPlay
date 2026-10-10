@@ -9,9 +9,10 @@
 - [x] Public hotfix release `v0.1.1` published with improved Microsoft auth diagnostics
 - [x] Release `v0.2.0` published with the in-app updater and local launcher accounts
 - [x] Release `v0.2.1` published with the dedicated JustPlay login screen and guest mode
-- [x] Windows build and JavaScript syntax checks passed for `v0.2.1`
+- [x] Release `v0.2.2` published with Java auto-detection, authenticated skin sync, and encrypted saved-session play
+- [x] JavaScript syntax check passed and Windows installer build succeeded for `v0.2.2`
 - [x] Release includes `JustPlay.exe` and `latest.yml` update metadata
-- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0 can update to v0.2.1 in-app
+- [x] In-app update checks are available starting with v0.2.0; v0.1.1 users must install v0.2.0 manually once; v0.2.0 and v0.2.1 can update in-app
 - [x] Release download URL verified in GitHub release metadata
 
 ## One required repository setting for the website
@@ -24,7 +25,7 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 
 ## Downloads
 - Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.1>
+- Latest release: <https://github.com/43r5fer/JustPlay/releases/tag/v0.2.2>
 - Changelog: <https://github.com/43r5fer/JustPlay/blob/main/CHANGELOG.md>
 - Public repository: <https://github.com/43r5fer/JustPlay>
 
@@ -36,4 +37,4 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 - [ ] Consider code-signing the installer; this current community build is unsigned and Windows may warn about unknown publisher.
 - [ ] Review third-party dependency audit output and keep dependencies updated.
 
-JustPlay is independent and not affiliated with Mojang or Microsoft. A local display name is not Minecraft account authentication; valid Minecraft Java access is required to launch the game. A local JustPlay username/password account only signs into the local launcher profile and does not bypass game ownership checks.
+JustPlay is independent and not affiliated with Mojang or Microsoft. A local display name is not Minecraft account authentication; valid Minecraft Java access is required to launch the game. A local JustPlay username/password account only signs into the local launcher profile and does not bypass game ownership checks. Saved-session play reuses a recent OS-encrypted session from a previously successful Microsoft/Minecraft sign-in and requires already-installed local game files.
