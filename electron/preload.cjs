@@ -9,6 +9,18 @@ contextBridge.exposeInMainWorld('justplay', {
   setRam: value => ipcRenderer.invoke('app:set-ram', value),
   signIn: () => ipcRenderer.invoke('account:sign-in'),
   signOut: () => ipcRenderer.invoke('account:sign-out'),
+  createLocalAccount: (username, password) => ipcRenderer.invoke('account:local-create', username, password),
+  signInLocalAccount: (username, password) => ipcRenderer.invoke('account:local-sign-in', username, password),
+  signOutLocalAccount: () => ipcRenderer.invoke('account:local-sign-out'),
+  getUpdateStatus: () => ipcRenderer.invoke('app:update-status'),
+  checkForUpdates: () => ipcRenderer.invoke('app:update-check'),
+  downloadUpdate: () => ipcRenderer.invoke('app:update-download'),
+  installUpdate: () => ipcRenderer.invoke('app:update-install'),
+  onUpdateStatus: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('app:update-status', listener);
+    return () => ipcRenderer.removeListener('app:update-status', listener);
+  },
   listVersions: () => ipcRenderer.invoke('versions:list'),
   launch: entry => ipcRenderer.invoke('minecraft:launch', entry),
   addFiles: (kind, mcVersion) => ipcRenderer.invoke('files:add', kind, mcVersion),
