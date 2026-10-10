@@ -294,7 +294,15 @@ function mobileCapacitorPlatform() {
 }
 function getFlockUpdatesPlugin() {
   const cap = window.Capacitor;
-  return cap && cap.Plugins ? cap.Plugins.FlockUpdates || null : null;
+  if (cap && cap.Plugins && cap.Plugins.FlockUpdates) return cap.Plugins.FlockUpdates;
+  if (cap && typeof cap.nativePromise === 'function') {
+    return {
+      getInfo: () => cap.nativePromise('FlockUpdates', 'getInfo', {}),
+      startUpdate: options => cap.nativePromise('FlockUpdates', 'startUpdate', options || {}),
+      completeUpdate: () => cap.nativePromise('FlockUpdates', 'completeUpdate', {})
+    };
+  }
+  return null;
 }
 function compareVersions(left, right) {
   const parse = value => {
