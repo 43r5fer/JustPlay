@@ -5,8 +5,12 @@ JustPlay is a Windows desktop launcher for discovering Roblox experiences and op
 ## Get JustPlay
 
 - **Windows installer:** https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe
-- **Latest release:** https://github.com/43r5fer/JustPlay/releases/latest
-- **Source ZIP:** https://github.com/43r5fer/JustPlay/archive/refs/tags/v0.3.0.zip
+- **Latest release:** https://github.com/43r5fer/JustPlay/releases/tag/v0.3.1
+- **Source ZIP:** https://github.com/43r5fer/JustPlay/archive/refs/tags/v0.3.1.zip
+
+## v0.3.1 search compatibility fix
+
+- Updated Roblox experience search query parameters to use the current `searchQuery`, `pageToken`, `sessionId`, and `pageType=all` form. Roblox's public discover/search endpoints are undocumented and may change.
 
 ## Features
 
