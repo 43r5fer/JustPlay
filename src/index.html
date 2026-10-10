@@ -120,18 +120,19 @@
                 <button class="catalog-tab" data-filter="snapshot" role="tab">Snapshot <span id="countSnapshot">—</span></button>
                 <button class="catalog-tab" data-filter="legacy" role="tab">Legacy <span id="countLegacy">—</span></button>
                 <button class="catalog-tab" data-filter="forge" role="tab">Forge <span id="countForge">—</span></button>
+                <button class="catalog-tab" data-filter="fabric" role="tab">Fabric <span id="countFabric">—</span></button>
                 <button class="catalog-tab" data-filter="optifine" role="tab">OptiFine <span id="countOptifine">—</span></button>
                 <button class="catalog-tab" data-filter="installed" role="tab">Installed <span id="countInstalled">—</span></button>
               </div>
               <div id="versionList" class="version-list" role="list" aria-label="Available versions"><div class="empty-state">Loading the official catalog…</div></div>
-              <div class="catalog-footnote"><span>ⓘ</span><span>Vanilla versions download from Mojang. Forge and OptiFine have separate installer requirements shown before you continue.</span></div>
+              <div class="catalog-footnote"><span>ⓘ</span><span>Vanilla versions download from Mojang. Forge and Fabric installers come from their official projects. OptiFine may require its separate official installer.</span></div>
             </section>
             <aside class="version-detail-column">
               <section class="panel selected-detail-panel">
                 <div class="detail-cover"><div class="cover-sky"></div><div class="cover-sun"></div><div class="cover-mountain one"></div><div class="cover-mountain two"></div><div class="cover-grass"></div><div class="cover-badge">JP</div></div>
                 <div class="detail-body"><div class="eyebrow">SELECTED BUILD</div><h2 id="detailVersionName">Latest Release</h2><p id="detailVersionDescription">Choose a version from the catalog to see its details.</p><div class="detail-meta"><div><span>TYPE</span><strong id="detailVersionType">Release</strong></div><div><span>STATUS</span><strong id="detailVersionStatus">Not installed</strong></div></div><button id="detailActionBtn" class="primary-button full-button" disabled>Choose a version <span>→</span></button><button id="detailOfflineBtn" class="secondary-button full-button cached-play-button" type="button" hidden>Play with saved session</button><button id="detailOpenFolderBtn" class="secondary-button full-button">Open game folder</button><div id="detailExtraNote" class="detail-extra-note">Sign in with Microsoft before launching a game.</div></div>
               </section>
-              <section class="official-source-card"><div class="source-icon">↗</div><div><strong>Official sources only</strong><p>Version metadata comes from Mojang. Loader installers open their official projects when manual steps are required.</p><button class="text-button" id="openForgeSource">Forge website ↗</button><button class="text-button" id="openOptifineSource">OptiFine website ↗</button></div></section>
+              <section class="official-source-card"><div class="source-icon">↗</div><div><strong>Official sources only</strong><p>Version metadata comes from Mojang. Loader installers open their official projects when manual steps are required.</p><button class="text-button" id="openForgeSource">Forge website ↗</button><button class="text-button" id="openFabricSource">Fabric website ↗</button><button class="text-button" id="openOptifineSource">OptiFine website ↗</button></div></section>
             </aside>
           </div>
         </section>
