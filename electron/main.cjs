@@ -836,6 +836,42 @@ async function assertCachedProfileReady(instanceRoot, selectedVersionId) {
     throw new Error('The Minecraft client JAR is missing from this install. Launch this version online once to complete its files, then retry saved-session play.');
   }
 
+  const librariesDir = path.join(instanceRoot, 'libraries');
+  function libraryAppliesToWindows(library) {
+    const rules = Array.isArray(library.rules) ? library.rules : null;
+    if (!rules || !rules.length) return true;
+    let allowed = false;
+    for (const rule of rules) {
+      if (rule.features && Object.keys(rule.features).length) continue;
+      if (!rule.os || !rule.os.name || rule.os.name === 'windows') allowed = rule.action === 'allow';
+    }
+    return allowed;
+  }
+  async function requireLibraryFile(relativePath) {
+    const normalized = String(relativePath || '').replace(/\\/g, '/');
+    const target = path.resolve(librariesDir, normalized);
+    if (target !== path.resolve(librariesDir) && !target.startsWith(path.resolve(librariesDir) + path.sep)) {
+      throw new Error('The installed profile contains an unsafe library path.');
+    }
+    try { await fsp.access(target); } catch {
+      throw new Error('A Minecraft library is missing from this profile. Launch it online once to finish downloading dependencies before using saved-session play.');
+    }
+  }
+  for (const item of chain) {
+    for (const library of (Array.isArray(item.metadata.libraries) ? item.metadata.libraries : [])) {
+      if (!libraryAppliesToWindows(library)) continue;
+      const artifact = library.downloads && library.downloads.artifact;
+      if (artifact && artifact.path) await requireLibraryFile(artifact.path);
+      const nativeSelector = library.natives && library.natives.windows;
+      if (nativeSelector && library.downloads && library.downloads.classifiers) {
+        const arch = process.arch === 'ia32' ? '32' : '64';
+        const classifierName = String(nativeSelector).replace(/\$\{arch\}/g, arch);
+        const classifier = library.downloads.classifiers[classifierName];
+        if (classifier && classifier.path) await requireLibraryFile(classifier.path);
+      }
+    }
+  }
+
   const assetRef = chain.map(item => item.metadata.assetIndex && item.metadata.assetIndex.id || item.metadata.assets).find(Boolean);
   if (assetRef) {
     const indexFile = path.join(instanceRoot, 'assets', 'indexes', String(assetRef) + '.json');
