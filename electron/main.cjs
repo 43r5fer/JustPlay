@@ -62,6 +62,7 @@ function createWindow() {
     autoHideMenuBar: true,
     title: 'Flock',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
