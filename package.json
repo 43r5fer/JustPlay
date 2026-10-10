@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "electron .",
-    "dist:win": "electron-builder --win nsis",
+    "dist:win": "electron-builder --win nsis --publish never",
     "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js"
   },
   "dependencies": {
