@@ -34,7 +34,7 @@
         <p>Keep your game, mods and packs in one tidy place.</p>
         <button class="text-button" data-page="docs">Read the quick guide <span>↗</span></button>
       </div>
-      <div class="sidebar-footer"><span class="pulse"></span> JustPlay Preview <span class="version-tag">0.2.0</span></div>
+      <div class="sidebar-footer"><span class="pulse"></span> JustPlay Preview <span class="version-tag">0.2.1</span></div>
     </aside>
 
     <main class="main-area">
@@ -171,18 +171,18 @@
         <section id="page-docs" class="page">
           <div class="page-heading-row"><div><div class="eyebrow">JUSTPLAY GUIDE</div><h1>Start simple. <em>Play more.</em></h1><p class="page-subtitle">Everything you need to set up your game library and keep it tidy.</p></div></div>
           <section class="panel release-notes-panel">
-            <div class="release-notes-heading"><div><div class="eyebrow">RELEASE NOTES · OCTOBER 2026</div><h2>What’s new in <em>v0.2.0</em></h2></div><span class="release-latest-tag">LATEST</span></div>
-            <p class="release-intro">This is JustPlay’s first update-enabled release. Once v0.2.0 is installed, future versions can be checked, downloaded and installed from inside the launcher.</p>
+            <div class="release-notes-heading"><div><div class="eyebrow">RELEASE NOTES · OCTOBER 2026</div><h2>What’s new in <em>v0.2.1</em></h2></div><span class="release-latest-tag">LATEST</span></div>
+            <p class="release-intro">This release adds a dedicated JustPlay login screen, guest access, and a clearer split between your local launcher profile and Microsoft game authentication. Update checks and release notes are included too.</p>
             <div class="release-note-grid">
               <article><span>↻</span><div><strong>In-app updates</strong><p>JustPlay checks for a new version and shows an update banner with download progress and a restart-to-install action.</p></div></article>
               <article><span>▤</span><div><strong>What’s New documentation</strong><p>Release notes are now included here, so players can see what changed in each published version.</p></div></article>
-              <article><span>◎</span><div><strong>Two separate account types</strong><p>A local JustPlay account can personalize the launcher on this PC. Microsoft sign-in remains the game-authentication path for official Java Edition play.</p></div></article>
+              <article><span>◎</span><div><strong>Account types stay separate</strong><p>JustPlay usernames sign into this PC’s launcher profile. Microsoft sign-in remains the game-authentication path for official Java Edition play.</p></div></article>
             </div>
-            <p class="release-migration-note"><strong>Already on v0.1.1?</strong> Install v0.2.0 once from the official download page. v0.1.1 did not contain an update checker, so it cannot display this first update prompt itself.</p>
+            <p class="release-migration-note"><strong>Upgrading?</strong> v0.2.0 users can use the in-app updater to install v0.2.1. Users on v0.1.1 or earlier must install v0.2.0 once manually because those versions did not include an update checker.</p>
           </section>
           <div class="docs-grid">
             <article class="panel doc-card"><div class="doc-number">01</div><h3>Set up your folders</h3><p>On first launch, choose a player display name and press Set up JustPlay. The app checks local drives for free space and creates a JustPlay folder on the drive with the most available space it can write to.</p><button class="text-button" data-page="settings">View storage settings ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">02</div><h3>Choose the right account</h3><p>A local JustPlay account signs into the launcher profile on this PC. To start official Minecraft Java Edition, use Microsoft sign-in with an account that has Java Edition access.</p><button class="text-button" id="docsSignInBtn">Sign in with Microsoft ↗</button></article>
+            <article class="panel doc-card"><div class="doc-number">02</div><h3>Choose the right account</h3><p>Sign into your local JustPlay profile at startup or continue as a guest. To start official Minecraft Java Edition, use Microsoft sign-in with an account that has Java Edition access.</p><button class="text-button" id="docsSignInBtn">Sign in with Microsoft ↗</button></article>
             <article class="panel doc-card"><div class="doc-number">03</div><h3>Install a version</h3><p>Choose an official Release or Snapshot. Press Install &amp; play. The first run downloads files from official sources; later launches use the installed profile. A compatible Java runtime must be available on PATH.</p><button class="text-button" data-page="versions">Browse versions ↗</button></article>
             <article class="panel doc-card"><div class="doc-number">04</div><h3>Forge &amp; OptiFine</h3><p>Forge builds come from Forge's Maven metadata and use their official installer. OptiFine downloads are handled on the official OptiFine page; follow its installer steps into the matching Game Versions profile, then select it under Installed.</p><div class="doc-link-row"><button class="text-button" id="docsForgeBtn">Forge ↗</button><button class="text-button" id="docsOptifineBtn">OptiFine ↗</button></div></article>
             <article class="panel doc-card"><div class="doc-number">05</div><h3>Add mods</h3><p>Use a mod loader profile, then add JAR files in Mods. JustPlay copies each file to the shared staging folder and the selected profile's mods directory. Only install mods you trust and that match your loader and game version.</p><button class="text-button" data-page="mods">Open Mods ↗</button></article>
