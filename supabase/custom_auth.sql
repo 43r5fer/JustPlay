@@ -162,6 +162,13 @@ grant select,insert,delete on public.flock_statuses to anon;
 grant select,insert on public.flock_status_views to anon;
 grant select,insert,delete on public.flock_message_reactions to anon;
 
+revoke all on function public.flock_create_direct_conversation(uuid) from public, authenticated;
+revoke all on function public.flock_create_group(text,uuid[]) from public, authenticated;
+revoke all on function public.flock_add_group_member(uuid,uuid) from public, authenticated;
+revoke all on function public.flock_set_group_role(uuid,uuid,text) from public, authenticated;
+revoke all on function public.flock_remove_group_member(uuid,uuid) from public, authenticated;
+revoke all on function public.flock_mark_conversation_read(uuid) from public, authenticated;
+revoke all on function public.flock_find_friend_code(text) from public, authenticated;
 grant execute on function public.flock_create_direct_conversation(uuid) to anon;
 grant execute on function public.flock_create_group(text,uuid[]) to anon;
 grant execute on function public.flock_add_group_member(uuid,uuid) to anon;
