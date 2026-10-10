@@ -5,11 +5,55 @@ const config = window.FLOCK_CONFIG || {};
 const SUPABASE_URL = config.supabaseUrl || '';
 const SUPABASE_KEY = config.supabasePublishableKey || '';
 const BUCKET = config.storageBucket || 'flock-media';
-const db = window.supabase && SUPABASE_URL && SUPABASE_KEY
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-    })
-  : null;
+function getSavedFlockSession() {
+  try { return localStorage.getItem('flock.session') || sessionStorage.getItem('flock.session') || ''; }
+  catch { return ''; }
+}
+function createFlockDatabase(sessionToken) {
+  if (!window.supabase || !SUPABASE_URL || !SUPABASE_KEY) return null;
+  const headers = sessionToken ? { 'x-flock-session': sessionToken } : {};
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'flock-no-supabase-auth' },
+    global: { headers }
+  });
+}
+let flockSessionToken = getSavedFlockSession();
+let db = createFlockDatabase(flockSessionToken);
+async function flockAuth(action, payload, token) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Flock account service is not configured.');
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+  const session = token === undefined ? flockSessionToken : token;
+  if (session) headers['x-flock-session'] = session;
+  const response = await fetch(SUPABASE_URL + '/functions/v1/flock-auth', {
+    method: 'POST', headers, cache: 'no-store',
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
+  });
+  let result = {};
+  try { result = await response.json(); } catch {}
+  if (!response.ok) throw new Error(result.error || 'Flock could not complete that request. Please try again.');
+  return result;
+}
+function persistFlockSession(token, remember) {
+  flockSessionToken = String(token || '');
+  try {
+    localStorage.removeItem('flock.session');
+    sessionStorage.removeItem('flock.session');
+    if (flockSessionToken) {
+      if (remember) localStorage.setItem('flock.session', flockSessionToken);
+      else sessionStorage.setItem('flock.session', flockSessionToken);
+    }
+  } catch {
+    if (flockSessionToken) throw new Error('This device cannot securely remember Flock here. Check browser storage settings and try again.');
+  }
+  if (realtimeChannel && db) db.removeChannel(realtimeChannel);
+  if (presenceChannel && db) db.removeChannel(presenceChannel);
+  if (authSubscription && db) db.removeChannel(authSubscription);
+  realtimeChannel = null;
+  presenceChannel = null;
+  authSubscription = null;
+  db = createFlockDatabase(flockSessionToken);
+}
+
 
 let user = null;
 let profile = null;
@@ -1562,23 +1606,24 @@ function setSidebarTab(tab) {
   else renderConversations();
 }
 async function signOut() {
-  if (!db) return;
-  await db.auth.signOut({ scope: 'local' });
+  const priorToken = flockSessionToken;
+  try { await flockAuth('logout', {}, priorToken); } catch {}
   user = null;
   profile = null;
   activeConversation = null;
   conversations = [];
   friends = [];
   friendRequests = [];
-  if (realtimeChannel) db.removeChannel(realtimeChannel);
-  if (presenceChannel) db.removeChannel(presenceChannel);
-  if (authSubscription) db.removeChannel(authSubscription);
+  if (realtimeChannel && db) db.removeChannel(realtimeChannel);
+  if (presenceChannel && db) db.removeChannel(presenceChannel);
+  if (authSubscription && db) db.removeChannel(authSubscription);
   realtimeChannel = null;
   presenceChannel = null;
   authSubscription = null;
   signedUrlCache.clear();
+  persistFlockSession('', false);
   showAuthScreen(false);
-  toast('Signed out', 'Your Flock messages remain synced to your account.');
+  toast('Signed out', 'Your messages remain saved to your Flock account.');
 }
 function bindEvents() {
   $('showSignInTab').addEventListener('click', () => showAuthScreen(false));
@@ -1590,61 +1635,49 @@ function bindEvents() {
   }));
   $('signInForm').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!db) { feedback('authFeedback','Supabase is not configured.',true); return; }
+    if (!db) { feedback('authFeedback','Flock is not configured. Check your connection and try again.',true); return; }
     const button = $('signInForm').querySelector('[type="submit"]');
     button.disabled = true;
+    feedback('authFeedback','Signing you in securely…');
     try {
-      const { data, error } = await db.auth.signInWithPassword({
-        email: $('signInEmail').value.trim(), password: $('signInPassword').value
-      });
-      if (error) throw error;
-      user = data.user;
+      const result = await flockAuth('login', {
+        username: $('signInUsername').value.trim().toLowerCase(),
+        password: $('signInPassword').value,
+        remember: $('rememberMe').checked
+      }, null);
+      persistFlockSession(result.sessionToken, result.remember);
+      user = result.user;
       await enterApp();
+      toast('Welcome back', 'Your Flock account is ready.');
     } catch (error) {
-      feedback('authFeedback', error.message || 'Could not sign in. Check your email and password.', true);
+      feedback('authFeedback', error.message || 'Could not sign in. Check your username and password.', true);
     } finally { button.disabled = false; }
   });
   $('signUpForm').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!db) { feedback('authFeedback','Supabase is not configured.',true); return; }
+    if (!db) { feedback('authFeedback','Flock is not configured. Check your connection and try again.',true); return; }
     const username = $('signUpUsername').value.trim().toLowerCase();
-    const email = $('signUpEmail').value.trim().toLowerCase();
     const password = $('signUpPassword').value;
     const confirm = $('signUpConfirm').value;
     if (!/^[a-z0-9_.-]{3,24}$/.test(username)) { feedback('authFeedback','Use 3–24 letters, numbers, dots, underscores or hyphens for your username.',true); return; }
-    if (password.length < 8) { feedback('authFeedback','Choose a password with at least 8 characters.',true); return; }
+    if (password.length < 8 || password.length > 128) { feedback('authFeedback','Choose a password with 8–128 characters.',true); return; }
     if (password !== confirm) { feedback('authFeedback','The passwords do not match.',true); return; }
     const button = $('signUpForm').querySelector('[type="submit"]');
     button.disabled = true;
+    feedback('authFeedback','Creating your private Flock account…');
     try {
-      const { data, error } = await db.auth.signUp({
-        email, password,
-        options: { data: { username, display_name: username } }
-      });
-      if (error) throw error;
-      if (data.session && data.user) {
-        user = data.user;
-        await enterApp();
-        toast('Welcome to Flock', 'Your account and 10-digit friend code are ready.');
-      } else {
-        feedback('authFeedback','One more step: check your email to confirm the account, then sign in. Your profile and friend code are created by Flock after registration.');
-        showAuthScreen(false);
-        $('signInEmail').value = email;
-      }
+      const result = await flockAuth('register', {
+        username, password, displayName: username, remember: $('signUpRememberMe').checked
+      }, null);
+      persistFlockSession(result.sessionToken, result.remember);
+      user = result.user;
+      await enterApp();
+      toast('Welcome to Flock', 'Your account and 10-digit friend code are ready.');
     } catch (error) {
-      feedback('authFeedback', error.message || 'Could not create your account. Try a different username or email.', true);
+      feedback('authFeedback', error.message || 'Could not create your Flock account. Try again.', true);
     } finally { button.disabled = false; }
   });
-  $('forgotPasswordBtn').addEventListener('click', async () => {
-    if (!db) return;
-    const email = $('signInEmail').value.trim();
-    if (!email) { feedback('authFeedback','Enter your email address first, then choose Forgot password.',true); return; }
-    try {
-      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-      if (error) throw error;
-      feedback('authFeedback','If an account exists for that email, a password reset link has been sent. Check your inbox.');
-    } catch (error) { feedback('authFeedback', error.message || 'Could not request a password reset.', true); }
-  });
+
   $('messageForm').addEventListener('submit', handleSendMessage);
   $('messageInput').addEventListener('input', () => {
     const node = $('messageInput');
@@ -1781,25 +1814,6 @@ async function enterApp() {
   }
   subscribeGlobal();
 }
-function openPasswordRecovery() {
-  showModal({
-    kicker:'FLOCK / ACCOUNT SECURITY',
-    title:'Choose a new password',
-    description:'Use a password you do not use anywhere else.',
-    body:'<label for="recoveryPassword">NEW PASSWORD</label><input id="recoveryPassword" class="input-field" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters"><label for="recoveryPasswordConfirm">CONFIRM PASSWORD</label><input id="recoveryPasswordConfirm" class="input-field" type="password" minlength="8" autocomplete="new-password" placeholder="Type it again">',
-    primary:'Update password',
-    onPrimary:async()=>{
-      const password=$('recoveryPassword').value;
-      if(password.length<8)throw new Error('Use at least 8 characters.');
-      if(password!==$('recoveryPasswordConfirm').value)throw new Error('Passwords do not match.');
-      const {error}=await db.auth.updateUser({password});
-      if(error)throw error;
-      window.history.replaceState({},document.title,window.location.pathname+window.location.search);
-      closeModal();
-      toast('Password updated','Your Flock account has a new password.');
-    }
-  });
-}
 function subscribeGlobal() {
   if (authSubscription) { db.removeChannel(authSubscription); authSubscription = null; }
   authSubscription = db.channel('flock-global-' + user.id)
@@ -1829,33 +1843,27 @@ async function initialize() {
   }
   if (!db) {
     showAuthScreen(false);
-    feedback('authFeedback','Flock cannot connect because Supabase configuration is missing. Check src/flock-config.js.',true);
+    feedback('authFeedback','Flock cannot connect to its cloud service. Check src/flock-config.js and reload.',true);
+    return;
+  }
+  const savedToken = getSavedFlockSession();
+  if (!savedToken) {
+    showAuthScreen(false);
     return;
   }
   try {
-    const { data, error } = await db.auth.getSession();
-    if (error) throw error;
-    user = data.session ? data.session.user : null;
-    if (user) await enterApp();
-    else showAuthScreen(false);
+    const result = await flockAuth('session', {}, savedToken);
+    flockSessionToken = savedToken;
+    db = createFlockDatabase(savedToken);
+    user = result.user;
+    await enterApp();
   } catch (error) {
+    persistFlockSession('', false);
+    user = null;
+    profile = null;
     showAuthScreen(false);
-    feedback('authFeedback',error.message || 'Could not connect to Flock. Check your internet connection.',true);
+    feedback('authFeedback','Your saved Flock session has expired. Please sign in again.',false);
   }
-  db.auth.onAuthStateChange(async (event, session) => {
-    if (suppressAuthCallback) return;
-    if (session && session.user && (!user || session.user.id !== user.id)) {
-      user = session.user;
-      await enterApp();
-    } else if (!session && user) {
-      user=null; profile=null; conversations=[]; friends=[]; friendRequests=[]; activeConversation=null;
-      showAuthScreen(false);
-    } else if (event==='PASSWORD_RECOVERY') {
-      openPasswordRecovery();
-    }
-  });
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('error_description')) feedback('authFeedback',params.get('error_description'),true);
 }
 initialize().catch(error=> {
   console.error('[Flock] Initialization error',error);
