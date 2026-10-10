@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const os = require('node:os');
 const https = require('node:https');
+const crypto = require('node:crypto');
 const { execFileSync, spawn } = require('node:child_process');
+const { autoUpdater } = require('electron-updater');
 const { Client } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
 
@@ -21,7 +23,119 @@ let catalogCacheAt = 0;
 let activeLauncher = null;
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
-const defaults = () => ({ setupComplete: false, displayName: '', rootPath: '', accountName: '', maxRam: '4G', minRam: '1G', installedProfiles: [] });
+const defaults = () => ({ setupComplete: false, displayName: '', rootPath: '', accountName: '', localAccountName: '', maxRam: '4G', minRam: '1G', installedProfiles: [] });
+const localAccountsFile = () => path.join(app.getPath('userData'), 'accounts.json');
+
+let updateState = { status: 'idle', currentVersion: app.getVersion() };
+
+function publishUpdateState(patch) {
+  updateState = { ...updateState, ...patch, currentVersion: app.getVersion() };
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:update-status', updateState);
+}
+
+function initializeAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  // Keep downloads user-initiated so an update never silently interrupts gameplay.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.on('checking-for-update', () => publishUpdateState({ status: 'checking' }));
+  autoUpdater.on('update-available', info => publishUpdateState({
+    status: 'available', version: String(info.version || ''), percent: 0,
+    message: `JustPlay ${String(info.version || '')} is available. Download it here, then restart to install.`
+  }));
+  autoUpdater.on('update-not-available', () => publishUpdateState({ status: 'not-available', version: app.getVersion() }));
+  autoUpdater.on('download-progress', progress => publishUpdateState({
+    status: 'downloading', percent: Math.max(0, Math.min(100, Number(progress.percent) || 0)),
+    message: `Downloading update… ${Math.round(Number(progress.percent) || 0)}%`
+  }));
+  autoUpdater.on('update-downloaded', info => publishUpdateState({
+    status: 'downloaded', version: String(info.version || updateState.version || ''), percent: 100,
+    message: 'The update is downloaded and ready. Restart JustPlay to finish installing it.'
+  }));
+  autoUpdater.on('error', error => {
+    // Never echo raw updater errors into the renderer; some providers include URLs or paths.
+    console.warn('[JustPlay updater]', error && error.message ? error.message : 'Updater error');
+    publishUpdateState({ status: 'error', message: 'JustPlay could not check or download updates. Check your internet connection and try again.' });
+  });
+  autoUpdater.checkForUpdates().catch(() => {
+    publishUpdateState({ status: 'error', message: 'JustPlay could not check for updates. Check your internet connection and try again.' });
+  });
+}
+
+async function readLocalAccounts() {
+  try {
+    const parsed = JSON.parse(await fsp.readFile(localAccountsFile(), 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeLocalAccounts(accounts) {
+  const file = localAccountsFile();
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.tmp`;
+  await fsp.writeFile(temporary, JSON.stringify(accounts, null, 2), { encoding: 'utf8', mode: 0o600 });
+  await fsp.rename(temporary, file);
+}
+
+function validateLocalUsername(value) {
+  const username = String(value || '').trim();
+  if (!/^[A-Za-z0-9_. -]{3,24}$/.test(username) || ['__proto__', 'constructor', 'prototype'].includes(username.toLowerCase())) {
+    throw new Error('Use a username with 3–24 letters, numbers, spaces, dots, underscores or hyphens.');
+  }
+  return username;
+}
+
+function deriveLocalPasswordHash(password, saltHex) {
+  return crypto.scryptSync(password, Buffer.from(saltHex, 'hex'), 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('hex');
+}
+
+async function createLocalAccount(usernameInput, passwordInput) {
+  const username = validateLocalUsername(usernameInput);
+  const password = String(passwordInput || '');
+  if (password.length < 8 || password.length > 256) throw new Error('Choose a password that is 8–256 characters long.');
+  const key = username.toLowerCase();
+  const accounts = await readLocalAccounts();
+  if (Object.hasOwn(accounts, key)) throw new Error('That JustPlay username already exists on this computer. Sign in instead.');
+  const salt = crypto.randomBytes(16).toString('hex');
+  accounts[key] = { username, salt, passwordHash: deriveLocalPasswordHash(password, salt), createdAt: new Date().toISOString() };
+  await writeLocalAccounts(accounts);
+  const state = await readSettings();
+  state.localAccountName = username;
+  await writeSettings(state);
+  return { ok: true, localAccountName: username, state: publicState(state) };
+}
+
+async function signInLocalAccount(usernameInput, passwordInput) {
+  const username = validateLocalUsername(usernameInput);
+  const password = String(passwordInput || '');
+  if (password.length < 1 || password.length > 256) throw new Error('Enter your password.');
+  const accounts = await readLocalAccounts();
+  const key = username.toLowerCase();
+  const account = Object.hasOwn(accounts, key) ? accounts[key] : null;
+  if (!account || typeof account.salt !== 'string' || typeof account.passwordHash !== 'string') {
+    throw new Error('Username or password is incorrect. This account is stored on this computer only.');
+  }
+  const actual = Buffer.from(deriveLocalPasswordHash(password, account.salt), 'hex');
+  const expected = Buffer.from(account.passwordHash, 'hex');
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    throw new Error('Username or password is incorrect. This account is stored on this computer only.');
+  }
+  const state = await readSettings();
+  state.localAccountName = account.username;
+  await writeSettings(state);
+  return { ok: true, localAccountName: account.username, state: publicState(state) };
+}
+
+async function signOutLocalAccount() {
+  const state = await readSettings();
+  state.localAccountName = '';
+  await writeSettings(state);
+  return { ok: true, state: publicState(state) };
+}
 
 async function readSettings() {
   try {
@@ -127,6 +241,7 @@ function publicState(state) {
     displayName: state.displayName || '',
     rootPath: state.rootPath || '',
     accountName: state.accountName || '',
+    localAccountName: state.localAccountName || '',
     maxRam: state.maxRam || '4G',
     minRam: state.minRam || '1G',
     storageDrive: state.storageDrive || '',
@@ -680,7 +795,7 @@ function createWindow() {
     },
   });
   mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => { mainWindow.show(); initializeAutoUpdater(); });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url).catch(() => {});
     return { action: 'deny' };
@@ -691,13 +806,37 @@ app.whenReady().then(async () => {
   // The Microsoft access token is intentionally memory-only. Forget the cached display name
   // at startup so the UI does not falsely report a signed-in session after a restart.
   const savedState = await readSettings();
-  if (savedState.accountName) { savedState.accountName = ''; await writeSettings(savedState); }
+  if (savedState.accountName || savedState.localAccountName) {
+    savedState.accountName = '';
+    savedState.localAccountName = '';
+    await writeSettings(savedState);
+  }
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 ipcMain.handle('app:state', async () => publicState(await readSettings()));
+ipcMain.handle('account:local-create', async (_event, username, password) => createLocalAccount(username, password));
+ipcMain.handle('account:local-sign-in', async (_event, username, password) => signInLocalAccount(username, password));
+ipcMain.handle('account:local-sign-out', async () => signOutLocalAccount());
+ipcMain.handle('app:update-status', async () => updateState);
+ipcMain.handle('app:update-check', async () => {
+  if (!app.isPackaged) return { status: 'unsupported', currentVersion: app.getVersion(), message: 'Update checks are available in the installed build.' };
+  try { await autoUpdater.checkForUpdates(); } catch { publishUpdateState({ status: 'error', message: 'JustPlay could not check for updates. Check your internet connection and try again.' }); }
+  return updateState;
+});
+ipcMain.handle('app:update-download', async () => {
+  if (!app.isPackaged) throw new Error('Update downloads are available in the installed build.');
+  if (updateState.status !== 'available') throw new Error('There is no ready update to download.');
+  await autoUpdater.downloadUpdate();
+  return { ok: true };
+});
+ipcMain.handle('app:update-install', async () => {
+  if (!app.isPackaged || updateState.status !== 'downloaded') throw new Error('Download an update before installing it.');
+  autoUpdater.quitAndInstall();
+  return { ok: true };
+});
 ipcMain.handle('app:disks', async () => (await getAvailableDisks()).map(d => ({ id: d.id, freeBytes: d.freeBytes, free: readableBytes(d.freeBytes), sizeBytes: d.sizeBytes, size: readableBytes(d.sizeBytes) })));
 ipcMain.handle('app:setup', async (_event, name) => setupJustPlay(name));
 ipcMain.handle('app:set-ram', async (_event, maxRam) => {
