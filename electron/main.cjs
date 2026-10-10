@@ -11,6 +11,7 @@ const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const { Client } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
+const { registerRobloxIpc } = require('./roblox.cjs');
 
 const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const FORGE_METADATA = 'https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml';
@@ -1214,6 +1215,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  registerRobloxIpc({ ipcMain, app, shell, safeStorage });
   // Clear only live UI identities on restart. A recent successfully verified Minecraft
   // session, if available, is stored separately with OS-provided encryption.
   const savedState = await readSettings();
