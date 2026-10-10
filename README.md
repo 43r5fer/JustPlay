@@ -2,7 +2,7 @@
 
 JustPlay is an unofficial Windows desktop launcher starter project with a clean UI, local profile folders, a version browser, an optional local display profile plus Microsoft sign-in when launching Minecraft, mod/resource-pack file management, and a Windows installer build configuration.
 
-**Latest Windows installer:** [JustPlay v0.2.0](https://github.com/43r5fer/JustPlay/releases/download/v0.2.0/JustPlay.exe). This release adds in-app update checks, release notes and local JustPlay launcher accounts. Microsoft sign-in still needs to be verified with your own licensed Java Edition account.
+**Latest Windows installer:** [JustPlay v0.2.1](https://github.com/43r5fer/JustPlay/releases/download/v0.2.1/JustPlay.exe). This release adds a dedicated JustPlay login screen and guest mode on top of the v0.2.0 in-app updater. Microsoft sign-in remains separate for official Minecraft Java Edition gameplay.
 
 > **Important:** this package is source code, not a precompiled `.exe`. Build it using the steps below. It does not bypass Minecraft ownership. Microsoft sign-in is handled through the authentication library's window; JustPlay does not ask for your Microsoft password in its own form.
 
@@ -59,7 +59,7 @@ The public repository is `43r5fer/JustPlay`. The launcher source and landing pag
    ```
 
 2. The **Build and release JustPlay for Windows** workflow builds the NSIS installer on a Windows runner and attaches `JustPlay.exe` to the GitHub Release.
-3. The v0.2.0 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.0/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
+3. The v0.2.1 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.1/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
 4. To publish future website updates, ensure Settings → Pages uses GitHub Actions, then open Actions → Publish JustPlay website to GitHub Pages → Run workflow if a push does not trigger it.
 4. The Windows installer creates a Start Menu shortcut named **JustPlay** and a desktop shortcut, so Windows Search can find the installed app.
 
@@ -122,6 +122,10 @@ If Microsoft sign-in opens successfully but Xbox/Minecraft verification fails, t
 
 JustPlay allows users to enter the app, choose a display name, install versions, and manage mods/resource packs without logging in immediately. The display name is only a local launcher profile; it is not a Minecraft identity and does not unlock multiplayer or game ownership. JustPlay will require valid Minecraft Java account authentication when starting the game. This project intentionally does not impersonate TLauncher or implement cracked/offline authentication that bypasses game access checks.
 
+
+## v0.2.1 JustPlay login screen and guest mode
+
+At launch, JustPlay presents a dedicated local account screen. Players can create an account, sign into a previously created account stored on this PC, or continue as a guest. The local profile does not grant Minecraft access. The existing in-app updater from v0.2.0 can detect and download this release.
 
 ## v0.2.0 updates and local accounts
 
