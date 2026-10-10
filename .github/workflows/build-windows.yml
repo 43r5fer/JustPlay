@@ -51,4 +51,6 @@ jobs:
           name: JustPlay ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: dist/JustPlay.exe
+          files: |
+            dist/JustPlay.exe
+            dist/latest.yml
