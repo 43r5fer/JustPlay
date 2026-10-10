@@ -1,0 +1,50 @@
+{
+  "name": "justplay-launcher",
+  "version": "0.1.0",
+  "description": "JustPlay \u2014 a clean Windows launcher for Minecraft Java Edition",
+  "main": "electron/main.cjs",
+  "author": "JustPlay contributors",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron .",
+    "dist:win": "electron-builder --win nsis",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js"
+  },
+  "dependencies": {
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.justplay.launcher",
+    "productName": "JustPlay",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "JustPlay.${ext}",
+      "icon": "assets/justplay.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "JustPlay"
+    }
+  }
+}
