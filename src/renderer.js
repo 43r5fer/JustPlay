@@ -121,12 +121,12 @@ function renderProfile() {
   if (profile) {
     $('robloxSignInBtn').classList.add('is-connected');
     $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">✓</span><span>Connected as ' + escapeHtml(profile.username) + '</span>';
-    $('robloxSignInBtn').onclick = function () { switchToApp(); };
+
     $('browseWithoutSignInBtn').textContent = 'Continue to games →';
   } else {
     $('robloxSignInBtn').classList.remove('is-connected');
     $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">◩</span><span>Continue with Roblox</span><span class="button-arrow">↗</span>';
-    $('robloxSignInBtn').onclick = beginRobloxSignIn;
+
     $('browseWithoutSignInBtn').textContent = 'Browse games first →';
   }
   $('oauthClientIdInput').value = robloxState.clientId || '';
@@ -269,7 +269,7 @@ function setSpotlight(game) {
     $('spotlightDescription').textContent = 'Explore Roblox experiences and jump right in.';
     $('spotlightPlayBtn').disabled = true;
     $('spotlightImage').hidden = true;
-    $('spotlightArtPlaceholder').hidden = false;
+    document.querySelector('.spotlight-art-placeholder').hidden = false;
     return;
   }
   $('spotlightTitle').textContent = game.name || 'Featured experience';
