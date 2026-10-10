@@ -2,7 +2,7 @@
 
 const api = window.justplay;
 const $ = function (id) { return document.getElementById(id); };
-let robloxState = { configured: false, clientId: '', profile: null, connected: false, redirectUri: 'http://127.0.0.1:53682/callback' };
+let robloxState = { configured: false, clientId: '', profile: null, connected: false, redirectUri: 'http://localhost:53682/callback' };
 let favorites = new Set();
 let games = [];
 let favoriteGames = [];
@@ -73,7 +73,7 @@ function switchToApp() {
 function showSettings() {
   $('settingsOverlay').hidden = false;
   $('settingsClientIdInput').value = robloxState.clientId || '';
-  $('settingsRedirectUri').textContent = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  $('settingsRedirectUri').textContent = robloxState.redirectUri || 'http://localhost:53682/callback';
   renderSettingsProfile();
 }
 function closeSettings() {
@@ -125,12 +125,12 @@ function renderProfile() {
     $('browseWithoutSignInBtn').textContent = 'Continue to games →';
   } else {
     $('robloxSignInBtn').classList.remove('is-connected');
-    $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">◩</span><span>Continue with Roblox</span><span class="button-arrow">↗</span>';
+    $('robloxSignInBtn').innerHTML = '<span class="roblox-button-icon">◩</span><span id="robloxSignInLabel">Continue with Roblox</span><span class="button-arrow">↗</span>';
 
     $('browseWithoutSignInBtn').textContent = 'Browse games first →';
   }
   $('oauthClientIdInput').value = robloxState.clientId || '';
-  $('redirectUriText').textContent = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  $('redirectUriText').textContent = robloxState.redirectUri || 'http://localhost:53682/callback';
   $('oauthSetupBody').hidden = Boolean(robloxState.configured);
   $('oauthSetupSummary').classList.toggle('expanded', !robloxState.configured);
   $('favoritesCount').textContent = String(favorites.size);
@@ -139,7 +139,7 @@ function renderProfile() {
 async function loadRobloxState() {
   try {
     robloxState = await api.robloxState();
-    robloxState.redirectUri = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+    robloxState.redirectUri = robloxState.redirectUri || 'http://localhost:53682/callback';
     $('redirectUriText').textContent = robloxState.redirectUri;
     $('settingsRedirectUri').textContent = robloxState.redirectUri;
     renderProfile();
@@ -189,7 +189,7 @@ async function saveClientId(inputId, feedbackId) {
   }
 }
 async function copyRedirectUri(id, feedbackId) {
-  const text = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+  const text = robloxState.redirectUri || 'http://localhost:53682/callback';
   try {
     await navigator.clipboard.writeText(text);
     if (feedbackId) setFeedback(feedbackId, 'Redirect URI copied. Paste it into the Roblox OAuth app settings.');
@@ -505,7 +505,7 @@ async function initialize() {
   bindEvents();
   try {
     robloxState = await api.robloxState();
-    robloxState.redirectUri = robloxState.redirectUri || 'http://127.0.0.1:53682/callback';
+    robloxState.redirectUri = robloxState.redirectUri || 'http://localhost:53682/callback';
     const result = await api.getRobloxFavorites();
     favorites = new Set((Array.isArray(result) ? result : []).map(String));
     $('redirectUriText').textContent = robloxState.redirectUri;
