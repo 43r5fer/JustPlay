@@ -4,6 +4,8 @@
 - [x] Flock UI and responsive layouts committed under src/
 - [x] Supabase Auth/client config created
 - [x] Flock-specific tables created in the connected Supabase project with RLS enabled
+- [x] Profile visibility restricted to owner, friends/requests and shared conversations
+- [x] Friend-code lookup scoped to exact code through authenticated RPC
 - [x] Private flock-media bucket configured
 - [x] Supabase Realtime publication includes seven Flock tables
 - [x] Windows setup metadata script uses Flock-Setup.exe
