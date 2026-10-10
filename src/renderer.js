@@ -67,6 +67,10 @@ let statuses = [];
 let realtimeChannel = null;
 let presenceChannel = null;
 let authSubscription = null;
+let conversationPoller = null;
+let globalPoller = null;
+let conversationPollBusy = false;
+let globalPollBusy = false;
 let toastTimer = null;
 let typingTimer = null;
 let readTimer = null;
@@ -631,9 +635,9 @@ async function openDirectChat(friend) {
   const conversation = conversations.find(c => c.id === data);
   if (conversation) await openConversation(conversation);
 }
-async function refreshConversations() {
+async function refreshConversations(options) {
   assertUser();
-  setAppLoading('Syncing your conversations…');
+  if (!(options && options.quiet)) setAppLoading('Syncing your conversations…');
   const memberRes = await db.from('flock_conversation_members')
     .select('conversation_id,role,last_read_at,joined_at')
     .eq('user_id', user.id).order('joined_at', { ascending: false }).limit(300);
@@ -882,38 +886,29 @@ function renderMessages(rows) {
   timeline.querySelectorAll('a[target="_blank"]').forEach(a => a.addEventListener('click', () => {}));
 }
 function subscribeConversation(conversationId) {
-  if (realtimeChannel) db.removeChannel(realtimeChannel);
-  if (presenceChannel) db.removeChannel(presenceChannel);
-  realtimeChannel = db.channel('flock-messages-' + conversationId)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'flock_messages', filter: 'conversation_id=eq.' + conversationId }, () => {
-      if (activeConversation && activeConversation.id === conversationId) refreshMessages(conversationId, false).catch(() => {});
-      refreshConversations().catch(() => {});
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'flock_message_receipts' }, () => {
-      if (activeConversation && activeConversation.id === conversationId) refreshMessages(conversationId, false).catch(() => {});
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'flock_message_reactions' }, () => {
-      if (activeConversation && activeConversation.id === conversationId) refreshMessages(conversationId, false).catch(() => {});
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'flock_conversation_members', filter: 'conversation_id=eq.' + conversationId }, () => {
-      refreshConversations().catch(() => {});
-    })
-    .subscribe();
-  presenceChannel = db.channel('flock-presence-' + conversationId, { config: { presence: { key: user.id } } })
-    .on('presence', { event: 'sync' }, () => renderPresence())
-    .on('broadcast', { event: 'typing' }, payload => {
-      if (payload && payload.payload && payload.payload.userId !== user.id) {
-        $('typingIndicator').hidden = false;
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => $('typingIndicator').hidden = true, 1800);
-      }
-    })
-    .subscribe(async status => {
-      if (status === 'SUBSCRIBED') {
-        await presenceChannel.track({ user_id: user.id, display_name: profile.display_name, at: new Date().toISOString() });
-      }
-    });
+  if (realtimeChannel && db) db.removeChannel(realtimeChannel);
+  if (presenceChannel && db) db.removeChannel(presenceChannel);
+  realtimeChannel = null;
+  presenceChannel = null;
+  if (conversationPoller) clearInterval(conversationPoller);
+  conversationPoller = null;
+  const poll = async () => {
+    if (conversationPollBusy || !user || !activeConversation || activeConversation.id !== conversationId || document.hidden) return;
+    conversationPollBusy = true;
+    try {
+      await refreshMessages(conversationId, false);
+      await db.rpc('flock_mark_conversation_read', { p_conversation_id: conversationId });
+      await refreshConversations({ quiet: true });
+      if (activeConversation && activeConversation.id === conversationId) renderPresence();
+    } catch (error) {
+      console.warn('[Flock] Conversation sync paused:', error && error.message ? error.message : 'network error');
+    } finally {
+      conversationPollBusy = false;
+    }
+  };
+  conversationPoller = setInterval(poll, 2400);
 }
+
 function renderPresence() {
   if (!presenceChannel || !activeConversation || activeConversation.kind !== 'direct') return;
   const states = presenceChannel.presenceState();
@@ -1606,6 +1601,10 @@ function setSidebarTab(tab) {
   else renderConversations();
 }
 async function signOut() {
+  if (conversationPoller) clearInterval(conversationPoller);
+  if (globalPoller) clearInterval(globalPoller);
+  conversationPoller = null;
+  globalPoller = null;
   const priorToken = flockSessionToken;
   try { await flockAuth('logout', {}, priorToken); } catch {}
   user = null;
@@ -1815,25 +1814,23 @@ async function enterApp() {
   subscribeGlobal();
 }
 function subscribeGlobal() {
-  if (authSubscription) { db.removeChannel(authSubscription); authSubscription = null; }
-  authSubscription = db.channel('flock-global-' + user.id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'flock_friendships'},payload=>{
-      const row=payload.new || payload.old;
-      if(row && (row.requester_id===user.id || row.addressee_id===user.id)) {
-        refreshFriends().catch(()=>{});
-        refreshConversations().catch(()=>{});
-      }
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'flock_conversation_members',filter:'user_id=eq.'+user.id},()=>refreshConversations().catch(()=>{}))
-    .on('postgres_changes',{event:'*',schema:'public',table:'flock_conversations'},payload=>{
-      const row=payload.new || payload.old;
-      if(row && conversations.some(c=>c.id===row.id)) refreshConversations().catch(()=>{});
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'flock_statuses'},()=> {
-      if(Date.now()-lastStatusLoad>15000) $('statusCountBadge').textContent='NEW';
-    })
-    .subscribe();
+  if (globalPoller) clearInterval(globalPoller);
+  globalPoller = null;
+  const poll = async () => {
+    if (globalPollBusy || !user || document.hidden) return;
+    globalPollBusy = true;
+    try {
+      await Promise.all([refreshFriends(), refreshConversations({ quiet: true })]);
+      if (Date.now() - lastStatusLoad > 30000) $('statusCountBadge').textContent = 'NEW';
+    } catch (error) {
+      console.warn('[Flock] Account sync paused:', error && error.message ? error.message : 'network error');
+    } finally {
+      globalPollBusy = false;
+    }
+  };
+  globalPoller = setInterval(poll, 10000);
 }
+
 async function initialize() {
   bindEvents();
   wireDesktopUpdates();
