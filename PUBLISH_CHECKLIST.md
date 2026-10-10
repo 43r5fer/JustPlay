@@ -11,6 +11,10 @@
 - [x] Windows setup metadata script uses Flock-Setup.exe
 - [x] Capacitor Android config and CI pipeline created
 - [x] Installable PWA manifest, icon and service worker created
+- [x] Desktop update prompt connected to electron-updater
+- [x] Android update prompt and Google Play in-app update bridge added
+- [x] Android target/compile SDK set to API 36
+- [ ] Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD secrets to build a signed Play Store AAB
 - [x] Build and verify the combined Windows/Android v1.0.0 workflow (GitHub Actions success)
 - [ ] Install the APK on a real Android device
 - [ ] Test email confirmation and password recovery flows using configured Supabase Auth settings
@@ -20,8 +24,8 @@
 
 ## Release assets
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
-- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.1
-- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.1.zip
+- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.2
+- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.2.zip
 - Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Website: https://43r5fer.github.io/JustPlay/
