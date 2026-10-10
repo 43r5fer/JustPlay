@@ -2,7 +2,7 @@
 
 JustPlay is an unofficial Windows desktop launcher starter project with a clean UI, local profile folders, a version browser, an optional local display profile plus Microsoft sign-in when launching Minecraft, mod/resource-pack file management, and a Windows installer build configuration.
 
-**Latest Windows installer:** [JustPlay v0.2.2](https://github.com/43r5fer/JustPlay/releases/download/v0.2.2/JustPlay.exe). This release adds compatible Java runtime detection, official Minecraft skin sync, and encrypted saved-session launching for installed profiles. The in-app updater remains enabled.
+**Latest Windows installer:** [JustPlay v0.2.3](https://github.com/43r5fer/JustPlay/releases/download/v0.2.3/JustPlay.exe). This release adds official Fabric Loader installation and launching alongside compatible Java runtime detection, official Minecraft skin sync, and encrypted saved-session launching for installed profiles. The in-app updater remains enabled.
 
 > **Important:** this package is source code, not a precompiled `.exe`. Build it using the steps below. It does not bypass Minecraft ownership. Microsoft sign-in is handled through the authentication library's window; JustPlay does not ask for your Microsoft password in its own form.
 
@@ -59,7 +59,7 @@ The public repository is `43r5fer/JustPlay`. The launcher source and landing pag
    ```
 
 2. The **Build and release JustPlay for Windows** workflow builds the NSIS installer on a Windows runner and attaches `JustPlay.exe` to the GitHub Release.
-3. The v0.2.2 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.2/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
+3. The v0.2.3 installer is available at `https://github.com/43r5fer/JustPlay/releases/download/v0.2.3/JustPlay.exe`, and the website’s Download button points to `https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe`.
 4. To publish future website updates, ensure Settings → Pages uses GitHub Actions, then open Actions → Publish JustPlay website to GitHub Pages → Run workflow if a push does not trigger it.
 4. The Windows installer creates a Start Menu shortcut named **JustPlay** and a desktop shortcut, so Windows Search can find the installed app.
 
@@ -83,10 +83,11 @@ The app is not code-signed in this starter project. Windows SmartScreen may show
 
 After a successful Microsoft sign-in, JustPlay can save the Minecraft launcher session for up to 20 hours using Electron's OS-provided `safeStorage` encryption. This enables saved-session play for already-installed profiles. The cache is deleted when you explicitly sign out. No Microsoft password or refresh token is saved. On Windows, `safeStorage` protects the cached data using Windows DPAPI; it is not a server-side account session.
 
-## Versions, Forge and OptiFine
+## Versions, Forge, Fabric and OptiFine
 
 - Release, snapshot and legacy version metadata is read from Mojang's official version manifest: <https://piston-meta.mojang.com/mc/game/version_manifest_v2.json>.
 - Forge version metadata is read from Forge's official Maven metadata. The launcher downloads the matching installer JAR from `maven.minecraftforge.net` and hands it to the launcher core. Compatibility varies by Minecraft/Forge build and Java runtime; check the logs if a selected build fails.
+- Fabric-supported game versions are read from Fabric Meta. JustPlay selects a compatible stable Fabric Loader release, downloads the official installer from `maven.fabricmc.net`, and creates a profile in the selected isolated game folder.
 - OptiFine versions are listed when the official downloads page is readable, but OptiFine uses its own website/installer flow. JustPlay opens <https://optifine.net/downloads> and does not automate ad redirects, CAPTCHA, or installer prompts. Follow OptiFine's instructions and install the profile into the matching JustPlay game folder.
 - Installed loader profiles are detected from local version metadata when available. A mod must match the Minecraft version and loader.
 
@@ -102,7 +103,7 @@ Only install add-ons from sources you trust. This app does not verify the safety
 
 - Java runtime detection searches `PATH`, `JAVA_HOME`, common JDK install directories and the official Minecraft Launcher runtime folder. If no compatible major version is found, install one from the Java downloads link in Docs.
 - The Microsoft authentication dependency is an external open-source library; its compatibility depends on Microsoft's current sign-in policies. Authentication failures are shown in the UI rather than bypassed.
-- Forge and OptiFine support varies by release. OptiFine still requires its official installer workflow.
+- Forge, Fabric and OptiFine support varies by release. OptiFine still requires its official installer workflow.
 - This project has not been signed or independently audited, and this container cannot provide a production code-signing certificate.
 - Users on v0.1.1 must install v0.2.0 once manually because v0.1.1 shipped without an update checker. Once v0.2.0 is installed, future releases can be detected from inside the launcher.
 
@@ -124,6 +125,13 @@ If Microsoft sign-in opens successfully but Xbox/Minecraft verification fails, t
 
 JustPlay allows users to enter the app, choose a display name, install versions, and manage mods/resource packs without logging in immediately. The display name is only a local launcher profile; it is not a Minecraft identity and does not unlock multiplayer or game ownership. JustPlay will require valid Minecraft Java account authentication when starting the game. This project intentionally does not impersonate TLauncher or implement cracked/offline authentication that bypasses game access checks.
 
+
+## v0.2.3 Fabric Loader support
+
+- Added a Fabric tab to the version library using Fabric Meta's supported stable Minecraft versions.
+- Install and launch Fabric Loader profiles from JustPlay with the official Fabric installer CLI.
+- Installed Fabric profiles are discoverable under Installed and can use the same recent encrypted saved-session flow as other previously authenticated, fully installed profiles.
+- No cracked/offline token mode is added: Microsoft authentication and valid Java Edition access remain required.
 
 ## v0.2.2 Java, skin sync and saved-session play
 
