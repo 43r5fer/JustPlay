@@ -13,9 +13,11 @@
 - [x] Installable PWA manifest, icon and service worker created
 - [x] Desktop update prompt connected to electron-updater
 - [x] Android update prompt and Google Play in-app update bridge added
+- [x] Flock v1.0.2 release published with updated Windows installer and Android test APK
+- [ ] Add release-signing secrets and build the signed Play Store App Bundle
 - [x] Android target/compile SDK set to API 36
 - [ ] Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD secrets to build a signed Play Store AAB
-- [ ] Build and verify the combined Windows/Android v1.0.2 workflow
+- [x] Build and verify the combined Windows/Android v1.0.2 workflow (both builds and release publication succeeded)
 - [ ] Install the APK on a real Android device
 - [ ] Test email confirmation and password recovery flows using configured Supabase Auth settings
 - [ ] Test friend requests, direct messages, realtime sent/read ticks, message edit/delete, media uploads and status expiry
