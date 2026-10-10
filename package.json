@@ -11,8 +11,6 @@
     "check": "node --check electron/main.cjs && node --check electron/roblox.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs"
   },
   "dependencies": {
-    "minecraft-launcher-core": "^3.18.2",
-    "msmc": "^5.0.5",
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
