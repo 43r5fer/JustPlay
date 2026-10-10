@@ -9,7 +9,7 @@
 - [ ] Verify OAuth Client ID and redirect URI against the actual Roblox Creator Dashboard app configuration
 - [ ] End-to-end test sign-in, search, thumbnails, favorites, and launch on a clean Windows 10/11 device
 - [ ] Check installed Roblox desktop client behavior and browser fallback on a machine with Roblox installed
-- [ ] Run \`npm run check\` and build the Windows installer in CI before distributing v0.3.0
+- [ ] Run \`npm run check\` and build the Windows installer in CI before distributing v0.3.1
 
 ## Roblox OAuth setup
 1. Register an OAuth 2.0 app in https://create.roblox.com/dashboard/credentials (account verification may be required).
