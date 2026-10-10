@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, shell, session } = require('electron');
+const { app, BrowserWindow, shell, session, ipcMain } = require('electron');
 const path = require('node:path');
 const { autoUpdater } = require('electron-updater');
 
@@ -82,6 +82,23 @@ function createWindow() {
 
 app.whenReady().then(() => {
   configureMediaPermissions();
+  ipcMain.handle('flock:update-status', () => updateState);
+  ipcMain.handle('flock:update-check', async () => {
+    if (!app.isPackaged) return { status: 'unsupported', currentVersion: app.getVersion() };
+    try { await autoUpdater.checkForUpdates(); }
+    catch { publishUpdateState({ status: 'error', message: 'Flock could not check for updates right now.' }); }
+    return updateState;
+  });
+  ipcMain.handle('flock:update-download', async () => {
+    if (!app.isPackaged || updateState.status !== 'available') throw new Error('No update is currently available.');
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  });
+  ipcMain.handle('flock:update-install', async () => {
+    if (!app.isPackaged || updateState.status !== 'downloaded') throw new Error('Download a Flock update before installing it.');
+    autoUpdater.quitAndInstall();
+    return { ok: true };
+  });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
