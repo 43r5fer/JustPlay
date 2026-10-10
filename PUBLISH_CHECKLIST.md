@@ -6,6 +6,7 @@
 - [x] Static landing page added in `site/`
 - [x] Windows installer built by GitHub Actions
 - [x] Public release `v0.1.0` published with `JustPlay.exe`
+- [x] Public hotfix release `v0.1.1` published with improved Microsoft auth diagnostics
 - [x] Release download URL verified in GitHub release metadata
 
 ## One required repository setting for the website
@@ -18,7 +19,7 @@ The connected GitHub tooling cannot turn GitHub Pages on for the repository; thi
 
 ## Downloads
 - Latest installer: <https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe>
-- Release notes/assets: <https://github.com/43r5fer/JustPlay/releases/tag/v0.1.0>
+- Release notes/assets: <https://github.com/43r5fer/JustPlay/releases/tag/v0.1.1>
 - Public repository: <https://github.com/43r5fer/JustPlay>
 
 ## Before broader promotion
