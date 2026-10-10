@@ -1,6 +1,6 @@
 {
   "name": "flock-messenger",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Flock — cross-platform messaging for your people",
   "main": "electron/main.cjs",
   "author": "Flock contributors",
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron .",
     "dist:win": "electron-builder --win nsis --publish never",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs && node --check scripts/build-mobile.mjs && node --check scripts/patch-android-manifest.mjs",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs && node --check scripts/build-mobile.mjs && node --check scripts/patch-android-manifest.mjs && node --check scripts/patch-android-release.mjs",
     "mobile:prepare": "node scripts/build-mobile.mjs",
     "mobile:android": "npm run mobile:prepare && npx cap sync android"
   },
