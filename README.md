@@ -4,6 +4,8 @@ Flock is a cross-platform messaging app built around friend codes, real-time con
 
 ## Current features
 
+The current source includes the v1.0.1 profile-privacy hotfix: profile reads are scoped and friend-code search returns only the matching profile.
+
 - Global accounts with Supabase Auth (email + password), username and password confirmation during sign-up, email confirmation when enabled, password reset, and sign-out.
 - A unique 10-digit friend code per profile, friend requests, acceptance and friend lists.
 - Live direct and group conversations through Supabase Realtime.
