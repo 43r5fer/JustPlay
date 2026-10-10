@@ -286,49 +286,81 @@ function scrubAuthDiagnostic(value) {
 
 function safeAuthDiagnosticValue(value, depth = 0, seen = new WeakSet(), keyName = '') {
   const key = String(keyName || '');
-  const sensitiveKey = /(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|authorization|cookie|device[_-]?code|code[_-]?verifier|bearer|^token$|^mstoken$|^xbltoken$|^state$|^nonce$)/i.test(key);
+  const sensitiveKey = /(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|authorization|cookie|device[_-]?code|code[_-]?verifier|bearer|^token$|^mstoken$|^xbltoken$|^state$|^nonce$|private[_-]?key)/i.test(key);
   if (sensitiveKey) return '[redacted]';
 
   if (value === null || value === undefined) return value ?? null;
   if (typeof value === 'string') {
-    // Some OAuth libraries call a structured error's `code` field `code`; preserve
-    // recognized library error identifiers, but never expose OAuth authorization codes.
-    if (/^code$/i.test(key) && !/^(?:error\.(?:auth|gui)\.|invalid_grant$|interaction_required$|AADSTS\d+)/i.test(value)) return '[redacted]';
+    // Preserve known auth/API error identifiers, but never expose OAuth authorization codes.
+    if (/^code$/i.test(key) && !/^(?:error\.(?:auth|gui)\.[A-Za-z0-9_.-]+|invalid_grant|interaction_required|AADSTS\d+|ECONN[A-Z]+|ENOTFOUND|ETIMEDOUT|ERR_[A-Z0-9_]+|\d{3})$/i.test(value)) {
+      return '[redacted]';
+    }
     return scrubAuthDiagnostic(value);
   }
   if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (typeof value !== 'object') return String(value);
-  if (depth >= 5) return '[nested details truncated]';
+  if (typeof value !== 'object') return scrubAuthDiagnostic(String(value));
+  if (depth >= 6) return '[nested details truncated]';
   if (seen.has(value)) return '[circular reference]';
   seen.add(value);
 
-  const out = {};
+  // Axios, fetch wrappers, MSMC, and Xbox libraries expose errors in different shapes.
+  // Keep only safe, diagnostic fields from nested response/data/errors; never log raw
+  // headers, request configs, request objects, stacks, or token-bearing properties.
   const allowed = new Set([
     'name', 'message', 'code', 'errorCode', 'error', 'error_description',
-    'description', 'reason', 'status', 'statusCode', 'statusText', 'type',
-    'key', 'cause', 'details', 'issues', 'title', 'errno', 'syscall', 'url',
+    'errorDescription', 'errorMessage', 'description', 'reason', 'status',
+    'statusCode', 'httpStatus', 'statusText', 'type', 'key', 'cause',
+    'details', 'issues', 'title', 'errno', 'syscall', 'url', 'data',
+    'response', 'errors', 'messageText', 'Message', 'XErr', 'xerr',
+    'Redirect', 'redirect', 'path', 'field', 'expected', 'received',
+    'traceId', 'correlationId', 'serverError', 'validation',
   ]);
+  const blocked = /^(?:request|headers|config|body|rawbody|responsebody|stack|identity|claims|profile|user|account|cookies)$/i;
   let entries = [];
   try {
+    const candidates = new Map();
     if (value instanceof Error) {
-      // Error.message/name are usually non-enumerable, so copy only safe fields explicitly.
-      entries = [
-        ['name', value.name], ['message', value.message], ['code', value.code],
-        ['errorCode', value.errorCode], ['cause', value.cause],
-        ...Object.entries(value),
-      ].filter(([, v]) => v !== undefined && v !== null);
-    } else {
-      entries = Object.entries(value);
+      for (const field of ['name', 'message', 'code', 'errorCode', 'cause', 'status', 'statusCode', 'response', 'data', 'errors', 'error', 'details', 'type']) {
+        try {
+          if (value[field] !== undefined && value[field] !== null) candidates.set(field, value[field]);
+        } catch { /* Ignore getters that throw. */ }
+      }
     }
-  } catch { return '[unreadable error object]'; }
-  for (const [childKey, childValue] of entries.slice(0, 24)) {
-    // Do not copy raw request/response bodies, HTTP headers, or request configs into logs.
-    if (/^(?:request|response|headers|config|body|rawbody|responsebody|stack)$/i.test(childKey)) continue;
-    if (!allowed.has(childKey) && !/^(?:message|error|error_description|description|reason|status|statusCode|statusText|code|errorCode|cause|details|issues|title|errno|syscall|url|type|key|name)$/i.test(childKey)) continue;
+    for (const [field, child] of Object.entries(value)) {
+      if (!candidates.has(field)) candidates.set(field, child);
+    }
+    // Read known non-enumerable fields on popular HTTP/library error objects where possible.
+    for (const field of ['status', 'statusCode', 'response', 'data', 'errors', 'error', 'error_description', 'errorMessage', 'XErr', 'Message', 'cause']) {
+      if (candidates.has(field)) continue;
+      try {
+        if (value[field] !== undefined && value[field] !== null) candidates.set(field, value[field]);
+      } catch { /* Ignore getters that throw. */ }
+    }
+    entries = [...candidates.entries()];
+  } catch { return { message: 'Could not inspect the error object safely', type: 'unreadable object' }; }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 12).map(item => safeAuthDiagnosticValue(item, depth + 1, seen, key));
+  }
+
+  const out = {};
+  for (const [childKey, childValue] of entries.slice(0, 36)) {
+    if (blocked.test(childKey) || sensitiveKey.test?.(childKey)) continue;
+    if (!allowed.has(childKey)) continue;
     out[childKey] = safeAuthDiagnosticValue(childValue, depth + 1, seen, childKey);
   }
+
   if (!Object.keys(out).length) {
-    try { out.type = Object.prototype.toString.call(value); } catch { out.type = 'Unknown error object'; }
+    const fields = [];
+    try {
+      for (const field of Object.keys(value).slice(0, 20)) {
+        if (!sensitiveKey.test(field) && !blocked.test(field)) fields.push(field);
+      }
+    } catch { /* Ignore objects with unusual property traps. */ }
+    return {
+      type: Array.isArray(value) ? 'array' : (value.constructor && value.constructor.name ? scrubAuthDiagnostic(value.constructor.name) : 'object'),
+      availableFields: fields,
+    };
   }
   return out;
 }
