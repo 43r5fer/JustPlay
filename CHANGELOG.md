@@ -1,36 +1,29 @@
 # Flock release notes
 
+## v1.0.3 — Custom Flock account system
+
+- Replaced Supabase Auth UI/API sign-in calls with Flock-owned username/password registration, login, logout and session validation.
+- Added per-user salted PBKDF2-SHA256 password hashes in a private credential table and 256-bit random, revocable device session tokens.
+- Added a default-on Remember me control (30-day remembered sessions; one-day temporary sessions) so users can reopen the app without entering their password on each launch.
+- Added server rate limiting for registration/sign-in and password change with revocation of other sessions.
+- Updated PostgreSQL RLS identity checks to validate the x-flock-session hash; ordinary message/storage calls no longer rely on auth.uid().
+- Replaced database Realtime subscriptions with short-interval polling because anonymous Data API connections do not carry a Flock session through Supabase Realtime.
+- Kept the Windows automatic updater and Google Play Android update prompts/build scripts.
+
+### Release notes
+
+- The Play Store App Bundle is conditional on four protected Android upload-signing GitHub secrets. When absent, CI builds a test APK and does not pretend it is a store-ready bundle.
+- Flock isn't formally audited and doesn't claim end-to-end encryption.
+- Self-service forgotten-password recovery is not enabled yet; signed-in users can change their password from profile settings.
+
 ## v1.0.2 — Play Store preparation and update prompts
 
-- Added desktop update prompts that offer download and restart/install when electron-updater finds a new release.
-- Added Android update detection using the release feed, plus a native Google Play in-app update bridge using flexible/immediate Play update flows.
-- Routed Play Store-installed builds through Google Play when that source is detected; sideload updates use a stable release-signed APK when signing is configured.
-- Added conditional protected signing for Android upload key secrets, signed release APK and signed Play Store App Bundle (Flock-Play-Store.aab).
-- Pinned Android compile/target SDK to API 36.
-- Kept a debug APK for testing when release-signing secrets are unavailable; Play Store App Bundle is skipped until an upload key is configured.
-- Added release build notes for Play Console, upload-key protection and Android's user-confirmed APK install flow.
+- Added desktop update prompts, native Google Play in-app update bridge, conditional Android signing configuration and target API 36.
 
 ## v1.0.1 — Friend-code privacy hotfix
 
-- Restricted profile rows to the signed-in user, accepted/pending friends, and members who share a conversation.
-- Added a server-checked flock_find_friend_code RPC so a friend code returns only the exact requested profile instead of exposing every profile row.
-- Restricted the profile lookup function to authenticated users and added server-side checks preventing duplicate or blocked friend requests.
-- Updated the renderer to use the scoped RPC.
+- Restricted profile reads and friend-code lookup to the exact friend-code query.
 
 ## v1.0.0 — Flock cross-platform messaging rebuild
 
-- Replaced the previous Roblox launcher application with **Flock**, a global account-based messenger.
-- Added Supabase Auth with username metadata, password confirmation, friend codes, account recovery, and synchronized user profiles.
-- Added private global tables for profiles, friendships, conversations, membership/roles, messages, receipts, statuses, status views and reactions.
-- Added row-level security policies, private media bucket access and Supabase Realtime publication for the Flock schema.
-- Added direct chats, groups, message edit/delete, replies, emoji reactions, read receipts, YouTube links, uploads, voice recording, video notes, statuses and profile backgrounds.
-- Added an installable PWA and responsive layout, plus Capacitor configuration and CI for a Windows setup installer and Android APK.
-
-### Notes
-
-- The Android artifact is debug-signed for testing if release signing secrets are absent.
-- Flock is not audited as end-to-end encrypted; message content is stored in Supabase with RLS and media access controls.
-
-## v0.3.1 — Previous app
-
-- Last release of the previous JustPlay Roblox launcher. This release is replaced by the Flock codebase.
+- Added global profiles, direct/group chat, media, statuses, read receipts, profile backgrounds, responsive UI and release pipelines.
