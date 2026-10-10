@@ -120,6 +120,7 @@ await writeFile(mainActivityPath, mainJava, 'utf8');
 
 const pluginPath = path.join(path.dirname(mainActivityPath), 'FlockUpdatesPlugin.java');
 const pluginJava = 'package ' + javaPackage + ';\n\n' +
+'import android.os.Build;\n' +
 'import com.getcapacitor.JSObject;\n' +
 'import com.getcapacitor.Plugin;\n' +
 'import com.getcapacitor.PluginCall;\n' +
@@ -180,6 +181,13 @@ const pluginJava = 'package ' + javaPackage + ';\n\n' +
 '        result.put("immediateAllowed", info.isUpdateTypeAllowed(AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()));\n' +
 '        result.put("updateAvailable", info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE);\n' +
 '        result.put("downloaded", info.installStatus() == InstallStatus.DOWNLOADED);\n' +
+'        String installer = "";\n' +
+'        try {\n' +
+'            if (Build.VERSION.SDK_INT >= 30) installer = getContext().getPackageManager().getInstallSourceInfo(getContext().getPackageName()).getInstallingPackageName();\n' +
+'            else installer = getContext().getPackageManager().getInstallerPackageName(getContext().getPackageName());\n' +
+'        } catch (Exception ignored) { /* Installer source may be unavailable. */ }\n' +
+'        result.put("installerPackageName", installer == null ? "" : installer);\n' +
+'        result.put("playStoreInstall", "com.android.vending".equals(installer));\n' +
 '        return result;\n' +
 '    }\n' +
 '}\n';
