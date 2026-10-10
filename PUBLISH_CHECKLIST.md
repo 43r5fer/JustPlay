@@ -1,26 +1,23 @@
-# JustPlay public launch checklist
+# Flock release checklist
 
-## Completed automatically
-- [x] Public repository: https://github.com/43r5fer/JustPlay
-- [x] Roblox launcher UI committed to \`main\`
-- [x] Roblox game discovery/search and one-click \`roblox://placeId=\` launch support implemented
-- [x] Optional Roblox OAuth profile sign-in uses PKCE and encrypted OS-backed token storage
-- [x] Local favorites and game-card UI implemented
-- [ ] Verify OAuth Client ID and redirect URI against the actual Roblox Creator Dashboard app configuration
-- [ ] End-to-end test sign-in, search, thumbnails, favorites, and launch on a clean Windows 10/11 device
-- [ ] Check installed Roblox desktop client behavior and browser fallback on a machine with Roblox installed
-- [ ] Run \`npm run check\` and build the Windows installer in CI before distributing v0.3.1
+## Current state
+- [x] Flock UI and responsive layouts committed under src/
+- [x] Supabase Auth/client config created
+- [x] Flock-specific tables created in the connected Supabase project with RLS enabled
+- [x] Private flock-media bucket configured
+- [x] Supabase Realtime publication includes seven Flock tables
+- [x] Windows setup metadata script uses Flock-Setup.exe
+- [x] Capacitor Android config and CI pipeline created
+- [x] Installable PWA manifest, icon and service worker created
+- [ ] Build and verify the combined Windows/Android v1.0.0 workflow
+- [ ] Install the APK on a real Android device
+- [ ] Test email confirmation and password recovery flows using configured Supabase Auth settings
+- [ ] Test friend requests, direct messages, realtime sent/read ticks, message edit/delete, media uploads and status expiry
+- [ ] Test voice/video recording permission prompts on Windows and Android
+- [ ] Sign the Android package with a dedicated release keystore before Play Store/public production distribution
 
-## Roblox OAuth setup
-1. Register an OAuth 2.0 app in https://create.roblox.com/dashboard/credentials (account verification may be required).
-2. Add the identity scopes \`openid\` and \`profile\`.
-3. Register redirect URL \`http://localhost:53682/callback\`.
-4. Enter the app's public Client ID in JustPlay. Do not enter a client secret or Roblox password.
-5. Submit/publish the OAuth app through Roblox review if it needs to be available beyond private testing limits.
-
-Roblox OAuth identifies the profile in JustPlay; it does not log the user into the Roblox desktop app. Gameplay authentication remains the responsibility of the official Roblox client.
-
-## Downloads
-- Latest installer: https://github.com/43r5fer/JustPlay/releases/latest/download/JustPlay.exe
-- Latest release: https://github.com/43r5fer/JustPlay/releases/tag/v0.3.0
-- Source repository: https://github.com/43r5fer/JustPlay
+## Release assets
+- Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
+- Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
+- Web app: https://43r5fer.github.io/JustPlay/app/
+- Website: https://43r5fer.github.io/JustPlay/
