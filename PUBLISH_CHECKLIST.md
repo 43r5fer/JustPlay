@@ -20,8 +20,8 @@
 
 ## Release assets
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
-- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.0
-- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.0.zip
+- Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.1
+- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.1.zip
 - Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Website: https://43r5fer.github.io/JustPlay/
