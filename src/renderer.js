@@ -10,6 +10,8 @@ let searchTerm = '';
 let visibleEntries = [];
 let lastProgress = 0;
 let toastTimer = null;
+let javaRuntimes = [];
+let javaRuntimeScanInProgress = false;
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -133,6 +135,64 @@ async function submitAccountGate(action) {
   }
 }
 
+function renderSkinPreview() {
+  const skin = appState?.minecraftSkin;
+  const image = $('skinTexturePreview');
+  if (!skin || !skin.textureUrl || !skin.playerName) {
+    image.hidden = true;
+    image.removeAttribute('src');
+    $('skinPlayerName').textContent = 'No skin synced yet';
+    $('skinSyncDetails').textContent = 'Sign in with Microsoft, then sync to preview your active skin texture here.';
+    return;
+  }
+  try {
+    const url = new URL(skin.textureUrl);
+    if (url.protocol !== 'https:' || url.hostname !== 'textures.minecraft.net') throw new Error('Invalid texture host');
+    image.src = url.toString();
+    image.hidden = false;
+  } catch {
+    image.hidden = true;
+    image.removeAttribute('src');
+  }
+  $('skinPlayerName').textContent = skin.playerName;
+  const synced = skin.syncedAt ? new Date(skin.syncedAt).toLocaleString() : 'Previously synced';
+  $('skinSyncDetails').textContent = `Active ${skin.variant || 'CLASSIC'} skin texture · Synced ${synced}`;
+}
+
+async function refreshJavaRuntimes(showFeedback = false) {
+  if (javaRuntimeScanInProgress) return;
+  javaRuntimeScanInProgress = true;
+  const button = $('detectJavaBtn');
+  if (button) button.disabled = true;
+  if (showFeedback) $('javaRuntimeFeedback').textContent = 'Searching PATH, JAVA_HOME, and common Java/Minecraft runtime folders…';
+  try {
+    const result = await api.detectJavaRuntimes();
+    javaRuntimes = Array.isArray(result.runtimes) ? result.runtimes : [];
+    const select = $('javaRuntimeSelect');
+    select.innerHTML = '<option value="">Auto-detect compatible runtime</option>' + javaRuntimes.map(item =>
+      `<option value="${esc(item.path)}">Java ${esc(item.major)} · ${esc(item.path)}</option>`
+    ).join('');
+    const selectedPath = result.selectedPath || appState?.javaPath || '';
+    if (selectedPath && javaRuntimes.some(item => item.path === selectedPath)) select.value = selectedPath;
+    const selected = javaRuntimes.find(item => item.path === select.value);
+    $('javaRuntimeCurrent').textContent = selected ? `Java ${selected.major} · ${selected.path}` : (javaRuntimes.length ? 'Automatic selection by Minecraft version' : 'No Java runtime detected');
+    if (appState) {
+      appState.javaPath = result.selectedPath || appState.javaPath || '';
+    }
+    $('javaRuntimeFeedback').textContent = javaRuntimes.length
+      ? `Found ${javaRuntimes.length} Java runtime${javaRuntimes.length === 1 ? '' : 's'}. JustPlay chooses a compatible runtime for the selected game version.`
+      : 'No Java runtime was found. Install a compatible Java runtime, then try Auto-detect again.';
+    if (showFeedback) showToast(javaRuntimes.length ? `Detected ${javaRuntimes.length} Java runtime${javaRuntimes.length === 1 ? '' : 's'}.` : 'No Java runtime was detected.', javaRuntimes.length ? 'normal' : 'error');
+  } catch (error) {
+    $('javaRuntimeCurrent').textContent = 'Java detection unavailable';
+    $('javaRuntimeFeedback').textContent = error.message || 'Could not detect Java runtimes.';
+    if (showFeedback) showToast(error.message || 'Could not detect Java runtimes.', 'error');
+  } finally {
+    javaRuntimeScanInProgress = false;
+    if (button) button.disabled = false;
+  }
+}
+
 function goTo(page) {
   if (!document.getElementById(`page-${page}`)) return;
   activePage = page;
@@ -188,7 +248,7 @@ function updateSelectedDetail() {
   $('detailVersionType').textContent = entryKindLabel(entry);
   $('detailVersionStatus').textContent = !exists ? 'Choose a version' : isEntryInstalled(entry) ? 'Installed' : ((entry.kind === 'forge' || entry.kind === 'optifine' || entry.kind === 'optifine-site') ? 'Installer available' : 'Ready to install');
   $('detailExtraNote').textContent = !appState?.accountName
-    ? 'Sign in with Microsoft before launching. Your Microsoft password is never entered in a JustPlay form.'
+    ? (appState?.cachedSessionAvailable ? `A recent saved session for ${appState.cachedMinecraftAccountName || 'your Minecraft profile'} is available for already-installed versions.` : 'Sign in with Microsoft before launching. Your Microsoft password is never entered in a JustPlay form.')
     : `Signed in as ${appState.accountName}. Game files are stored in this profile's folder.`;
   const action = $('detailActionBtn');
   action.disabled = !exists || !appState?.setupComplete;
@@ -200,6 +260,11 @@ function updateSelectedDetail() {
   $('quickSelectedDetail').textContent = entry ? `${entryKindLabel(entry)} · ${isEntryInstalled(entry) ? 'Installed' : 'Available to install'}` : 'Choose a version to continue';
   $('quickLaunchBtn').disabled = !entry || !appState?.setupComplete;
   $('quickLaunchBtn').innerHTML = entry ? `${isEntryInstalled(entry) ? 'Play now' : (entry.kind === 'forge' ? 'Install Forge & play' : entry.kind?.includes('optifine') ? 'Get OptiFine' : 'Install & play')} <span>→</span>` : 'Install & play <span>→</span>';
+  const canUseSavedSession = Boolean(entry && appState?.cachedSessionAvailable && appState?.setupComplete && isEntryInstalled(entry) && !['optifine', 'optifine-site'].includes(entry.kind));
+  $('quickOfflineBtn').hidden = !canUseSavedSession;
+  $('quickOfflineBtn').disabled = !canUseSavedSession;
+  $('detailOfflineBtn').hidden = !canUseSavedSession;
+  $('detailOfflineBtn').disabled = !canUseSavedSession;
   $('detailOpenFolderBtn').disabled = !appState?.setupComplete;
   $('modsInstanceLabel').textContent = appState?.rootPath ? `Selected instance: ${currentMcVersion()}` : 'Set up JustPlay first.';
   $('packsInstanceLabel').textContent = appState?.rootPath ? `Selected instance: ${currentMcVersion()}` : 'Set up JustPlay first.';
@@ -306,6 +371,7 @@ function renderSettings() {
   $('localAccountCurrent').textContent = appState.localAccountName || 'Not signed in this session';
   $('signOutLocalAccountBtn').hidden = !appState.localAccountName;
   $('ramSelect').value = appState.maxRam || '4G';
+  renderSkinPreview();
   $('diskSummary').innerHTML = appState.rootPath
     ? `<span class="status-dot"></span>Created on ${esc(appState.storageDrive || 'your selected drive')}. New profile data stays under this JustPlay folder.`
     : '<span class="status-dot"></span>Storage drive will be selected during setup.';
@@ -339,10 +405,11 @@ function hideProgress() {
   $('progressBar').style.width = '0%';
 }
 
-async function launchSelected() {
+async function launchSelected(mode = 'online') {
   if (!selectedEntry) { showToast('Choose a version first.'); goTo('versions'); return; }
   if (!appState?.setupComplete) { $('setupOverlay').hidden = false; return; }
-  if (!appState.accountName) {
+  if (mode === 'cached' && !appState?.cachedSessionAvailable) { showToast('Sign in with Microsoft successfully once while online to enable saved-session play.', 'error'); return; }
+  if (mode !== 'cached' && !appState.accountName) {
     showToast('Sign in with Microsoft before launching Minecraft.');
     await signInFlow();
     if (!appState.accountName) return;
@@ -355,11 +422,11 @@ async function launchSelected() {
   lastProgress = 1;
   setProgress({ title: entry.kind === 'forge' ? 'Preparing Forge…' : (isEntryInstalled(entry) ? 'Launching Minecraft…' : 'Installing Minecraft…'), message: entry.kind === 'forge' ? `Preparing Forge for ${entry.mcVersion}` : `Preparing ${entry.id}`, progress: 1 });
   try {
-    const result = await api.launch(entry);
+    const result = await api.launch(entry, mode);
     hideProgress();
     if (result?.external) { showToast(result.message || 'Opened the official installer page.'); return; }
     if (result?.started) {
-      showToast('Minecraft is starting. This profile is ready to launch again from JustPlay.');
+      showToast(mode === 'cached' ? 'Starting this already-installed profile with your recent saved Minecraft session. Full offline operation still depends on local game files being complete.' : 'Minecraft is starting. This profile is ready to launch again from JustPlay.');
       await refreshCatalog({ silent: true });
       if (entry.kind === 'forge') {
         const installed = catalog?.installed?.find(v => v.kind === 'installed-forge' && v.mcVersion === entry.mcVersion);
@@ -462,6 +529,41 @@ function bindEvents() {
   $('gateGuestBtn').addEventListener('click', () => enterLauncher('guest'));
 
   $('signInBtn').addEventListener('click', signInFlow);
+  $('quickOfflineBtn').addEventListener('click', () => launchSelected('cached'));
+  $('detailOfflineBtn').addEventListener('click', () => launchSelected('cached'));
+  $('detectJavaBtn').addEventListener('click', () => refreshJavaRuntimes(true));
+  $('javaRuntimeSelect').addEventListener('change', async event => {
+    try {
+      const result = await api.setJavaRuntime(event.target.value);
+      appState = result.state || await api.getState();
+      const selected = javaRuntimes.find(item => item.path === appState.javaPath);
+      $('javaRuntimeCurrent').textContent = selected ? `Java ${selected.major} · ${selected.path}` : 'Automatic selection by Minecraft version';
+      $('javaRuntimeFeedback').textContent = selected ? `Saved Java ${selected.major} for runtime selection. Compatibility is checked again for every selected Minecraft version.` : 'Java will be automatically selected for the game version when you launch it.';
+      showToast('Java runtime preference saved.');
+      updateSelectedDetail();
+    } catch (error) {
+      showToast(error.message || 'Could not save Java runtime.', 'error');
+      await refreshJavaRuntimes(false);
+    }
+  });
+  $('syncSkinBtn').addEventListener('click', async () => {
+    const button = $('syncSkinBtn');
+    button.disabled = true;
+    $('skinSyncFeedback').textContent = 'Connecting to the official Minecraft profile service…';
+    try {
+      const result = await api.syncSkin();
+      appState = result.state || await api.getState();
+      renderSkinPreview();
+      renderHeader();
+      $('skinSyncFeedback').textContent = `Synced ${result.skin.playerName}’s active skin texture from Minecraft.`;
+      showToast('Minecraft skin synced.');
+    } catch (error) {
+      $('skinSyncFeedback').textContent = error.message || 'Could not sync your skin.';
+      showToast(error.message || 'Could not sync your skin.', 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('settingsSignInBtn').addEventListener('click', signInFlow);
   $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
   $('updateDismissBtn').addEventListener('click', () => { $('updateBanner').hidden = true; });
@@ -592,6 +694,7 @@ async function init() {
   try {
     appState = await api.getState();
     renderHeader(); renderSettings();
+    refreshJavaRuntimes(false);
     // Every app launch starts at the JustPlay account gate. A guest may continue without
     // creating a local account; gameplay authentication remains separate.
     $('setupOverlay').hidden = true;
