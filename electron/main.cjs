@@ -16,6 +16,7 @@ const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest
 const FORGE_METADATA = 'https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml';
 const FORGE_HOME = 'https://files.minecraftforge.net/';
 const OPTIFINE_HOME = 'https://optifine.net/downloads';
+const FABRIC_META = 'https://meta.fabricmc.net/v2';
 let mainWindow;
 let microsoftSession = null; // Active session stays in memory; the optional cached session is OS-encrypted.
 let cachedMinecraftSession = null;
@@ -349,8 +350,9 @@ async function getCatalog() {
     fetchText(MOJANG_MANIFEST).then(JSON.parse),
     fetchText(FORGE_METADATA),
     fetchText(OPTIFINE_HOME),
+    fetchText(`${FABRIC_META}/versions/game`).then(JSON.parse),
   ]);
-  const previous = catalogCache || { latest: { release: '', snapshot: '' }, release: [], snapshot: [], legacy: [], forge: [], optifine: [] };
+  const previous = catalogCache || { latest: { release: '', snapshot: '' }, release: [], snapshot: [], legacy: [], forge: [], optifine: [], fabric: [] };
   let manifest = null;
   if (results[0].status === 'fulfilled') manifest = results[0].value;
   if (!manifest && previous.release.length) manifest = { latest: previous.latest, versions: [...previous.release, ...previous.snapshot, ...previous.legacy] };
@@ -366,6 +368,13 @@ async function getCatalog() {
   }));
   const forge = results[1].status === 'fulfilled' ? parseForgeVersions(results[1].value) : previous.forge;
   const optifine = results[2].status === 'fulfilled' ? parseOptiFineVersions(results[2].value) : previous.optifine;
+  const fabricGames = results[3].status === 'fulfilled' && Array.isArray(results[3].value) ? results[3].value : null;
+  const supportedFabricVersions = fabricGames
+    ? new Set(fabricGames.filter(item => item && item.stable === true).map(item => String(item.version)))
+    : new Set((previous.fabric || []).map(item => String(item.mcVersion)));
+  const fabric = vanilla
+    .filter(v => v.type === 'release' && supportedFabricVersions.has(v.id))
+    .map(v => ({ id: `fabric-${v.id}`, label: `Fabric ${v.id}`, mcVersion: v.id, kind: 'fabric', type: 'custom', releaseTime: '', installed: false }));
   catalogCache = {
     latest: manifest.latest || previous.latest,
     release: vanilla.filter(v => v.type === 'release'),
@@ -373,7 +382,8 @@ async function getCatalog() {
     legacy: vanilla.filter(v => v.type === 'old_beta' || v.type === 'old_alpha'),
     forge,
     optifine: optifine.length ? optifine : [{ id: 'official-optifine-downloads', label: 'Browse all OptiFine releases', mcVersion: '', kind: 'optifine-site', type: 'custom', downloadUrl: OPTIFINE_HOME, installed: false }],
-    source: { minecraft: MOJANG_MANIFEST, forge: FORGE_METADATA, optifine: OPTIFINE_HOME },
+    fabric,
+    source: { minecraft: MOJANG_MANIFEST, forge: FORGE_METADATA, optifine: OPTIFINE_HOME, fabric: FABRIC_META },
   };
   catalogCacheAt = Date.now();
   return catalogCache;
@@ -396,6 +406,7 @@ function buildPublicCatalog(catalog, installed) {
     legacy: catalog.legacy.map(attachVanilla),
     forge: catalog.forge.map(entry => ({ ...entry, installed: installed.profiles.some(p => p.kind === 'installed-forge' && p.mcVersion === entry.mcVersion && (p.id.includes(entry.loaderVersion) || p.id === entry.id)) })),
     optifine: catalog.optifine.map(entry => ({ ...entry, installed: installed.profiles.some(p => p.kind === 'installed-optifine' && (p.id === entry.id || p.id.includes(entry.mcVersion))) })),
+    fabric: (catalog.fabric || []).map(entry => ({ ...entry, installed: installed.profiles.some(p => p.kind === 'installed-fabric' && p.mcVersion === entry.mcVersion) })),
     installed: installed.profiles,
     source: catalog.source,
   };
@@ -809,6 +820,61 @@ async function downloadForgeInstaller(fullVersion) {
   return { file, mcVersion: match[1], loaderVersion: match[2] };
 }
 
+async function latestFabricLoaderVersion(mcVersion) {
+  const versions = JSON.parse(await fetchText(`${FABRIC_META}/versions/loader/${encodeURIComponent(mcVersion)}`));
+  if (!Array.isArray(versions)) throw new Error(`Fabric did not return compatible loaders for Minecraft ${mcVersion}.`);
+  const selected = versions.find(item => item && item.loader && item.loader.stable === true && item.loader.version)
+    || versions.find(item => item && item.loader && item.loader.version);
+  if (!selected) throw new Error(`No Fabric Loader build is available for Minecraft ${mcVersion}.`);
+  return String(selected.loader.version);
+}
+
+async function downloadFabricInstaller() {
+  const versions = JSON.parse(await fetchText(`${FABRIC_META}/versions/installer`));
+  const selected = Array.isArray(versions)
+    ? (versions.find(item => item && item.stable === true && typeof item.url === 'string')
+      || versions.find(item => item && typeof item.url === 'string'))
+    : null;
+  if (!selected || !selected.url || !selected.version) {
+    throw new Error('Fabric installer metadata is unavailable. Refresh the version catalog and try again.');
+  }
+  const installerUrl = new URL(selected.url);
+  if (installerUrl.protocol !== 'https:' || installerUrl.hostname !== 'maven.fabricmc.net') {
+    throw new Error('Fabric returned an unexpected installer download URL. The download was blocked.');
+  }
+  sendStatus({ state: 'installing-fabric', progress: 20, message: `Downloading Fabric Installer ${selected.version}…` });
+  const response = await fetch(installerUrl.toString(), { redirect: 'follow' });
+  if (!response.ok) throw new Error(`Fabric installer download returned HTTP ${response.status}.`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length < 100000) throw new Error('The Fabric installer download looked incomplete; the install was stopped.');
+  const file = path.join(app.getPath('temp'), 'JustPlay', `fabric-installer-${safeSegment(selected.version)}.jar`);
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  await fsp.writeFile(file, buffer);
+  return file;
+}
+
+async function runFabricInstaller(installerFile, javaPath, instanceRoot, mcVersion, loaderVersion) {
+  await fsp.mkdir(instanceRoot, { recursive: true });
+  sendStatus({ state: 'installing-fabric', progress: 42, message: `Installing Fabric Loader ${loaderVersion} for Minecraft ${mcVersion}…` });
+  await new Promise((resolve, reject) => {
+    const child = spawn(javaPath, [
+      '-jar', installerFile, 'client',
+      '-dir', instanceRoot,
+      '-mcversion', mcVersion,
+      '-loader', loaderVersion,
+    ], { cwd: instanceRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    const capture = chunk => { output = (output + String(chunk)).slice(-2400); };
+    if (child.stdout) child.stdout.on('data', capture);
+    if (child.stderr) child.stderr.on('data', capture);
+    child.once('error', reject);
+    child.once('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error(`Fabric installer exited with code ${code}.${output.trim() ? ` Details: ${output.trim()}` : ''}`));
+    });
+  });
+}
+
 async function assertCachedProfileReady(instanceRoot, selectedVersionId) {
   const versionsDir = path.join(instanceRoot, 'versions');
   const seen = new Set();
@@ -912,7 +978,8 @@ async function launchMinecraft(entry, mode = 'online') {
     const isVanillaInstalled = installed.vanillaInstalled.includes(mcVersion + '|' + String(entry.id));
     const isCustomInstalled = installed.profiles.some(profile => profile.id === String(entry.id) && profile.instanceRoot === instanceRoot);
     const isForgeInstalled = kind === 'forge' && installed.profiles.some(profile => profile.kind === 'installed-forge' && profile.mcVersion === mcVersion && (profile.id.includes(String(entry.loaderVersion || '')) || profile.id === String(entry.id)));
-    if (!isVanillaInstalled && !isCustomInstalled && !isForgeInstalled) {
+    const isFabricInstalled = kind === 'fabric' && installed.profiles.some(profile => profile.kind === 'installed-fabric' && profile.mcVersion === mcVersion && profile.instanceRoot === instanceRoot);
+    if (!isVanillaInstalled && !isCustomInstalled && !isForgeInstalled && !isFabricInstalled) {
       throw new Error('Saved-session play is only available for a Minecraft version already installed through JustPlay. Connect to the internet and launch it normally first.');
     }
     if (kind === 'forge' && !isForgeInstalled && !isCustomInstalled) {
@@ -938,6 +1005,7 @@ async function launchMinecraft(entry, mode = 'online') {
 
   let versionOptions;
   let forgeInstaller = null;
+  let fabricInstaller = null;
   let gameVersionId;
   if (kind === 'forge') {
     const installed = await scanInstalledProfiles(state);
@@ -951,6 +1019,24 @@ async function launchMinecraft(entry, mode = 'online') {
       gameVersionId = forge.mcVersion;
       versionOptions = { number: forge.mcVersion, type: 'release', forge: forgeInstaller };
       sendStatus({ state: 'progress', progress: 42, message: 'Installing Forge into the selected Game Versions folder…' });
+    }
+  } else if (kind === 'fabric') {
+    const installed = await scanInstalledProfiles(state);
+    const existingFabric = installed.profiles.find(profile => profile.kind === 'installed-fabric' && profile.mcVersion === mcVersion && profile.instanceRoot === instanceRoot);
+    if (existingFabric) {
+      gameVersionId = mcVersion;
+      versionOptions = { number: mcVersion, type: 'release', custom: existingFabric.id };
+    } else {
+      const loaderVersion = await latestFabricLoaderVersion(mcVersion);
+      fabricInstaller = await downloadFabricInstaller();
+      await runFabricInstaller(fabricInstaller, javaPath, instanceRoot, mcVersion, loaderVersion);
+      const refreshed = await scanInstalledProfiles(state);
+      const installedFabric = refreshed.profiles.find(profile => profile.kind === 'installed-fabric' && profile.mcVersion === mcVersion && profile.instanceRoot === instanceRoot);
+      if (!installedFabric) throw new Error('Fabric Installer finished, but JustPlay could not find the installed profile. Check the Fabric installer output and try again.');
+      gameVersionId = mcVersion;
+      versionOptions = { number: mcVersion, type: 'release', custom: installedFabric.id };
+      await fsp.unlink(fabricInstaller).catch(() => {});
+      fabricInstaller = null;
     }
   } else if (kind === 'installed-forge' || kind === 'installed-optifine' || kind === 'installed-fabric' || kind === 'installed-quilt' || kind === 'installed-neoforge' || kind === 'installed-custom') {
     gameVersionId = String(entry.mcVersion || mcVersion);
@@ -994,6 +1080,7 @@ async function launchMinecraft(entry, mode = 'online') {
     return { ok: true, started: true, mcVersion, instanceRoot };
   } catch (error) {
     if (forgeInstaller) fsp.unlink(forgeInstaller).catch(() => {});
+    if (fabricInstaller) fsp.unlink(fabricInstaller).catch(() => {});
     sendStatus({ state: 'error', message: normalizedError(error) });
     throw new Error(normalizedError(error));
   }
@@ -1211,7 +1298,7 @@ ipcMain.handle('files:list', async (_event, kind, mcVersion) => getAssetList(kin
 ipcMain.handle('files:remove', async (_event, kind, mcVersion, name, folderType) => removeAsset(kind, mcVersion, name, folderType));
 ipcMain.handle('folder:open', async (_event, target, mcVersion) => openFolder(target, mcVersion));
 ipcMain.handle('external:open', async (_event, kind) => {
-  const urls = { forge: FORGE_HOME, optifine: OPTIFINE_HOME, minecraft: 'https://www.minecraft.net/', java: 'https://adoptium.net/temurin/releases/', docs: 'https://www.minecraft.net/en-us/article/minecraft-java-edition' };
+  const urls = { forge: FORGE_HOME, fabric: 'https://fabricmc.net/', optifine: OPTIFINE_HOME, minecraft: 'https://www.minecraft.net/', java: 'https://adoptium.net/temurin/releases/', docs: 'https://www.minecraft.net/en-us/article/minecraft-java-edition' };
   const url = urls[kind];
   if (!url) throw new Error('Unknown official website.');
   await shell.openExternal(url); return { ok: true };
