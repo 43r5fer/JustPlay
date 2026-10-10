@@ -1,0 +1,28 @@
+{
+  "id": "./",
+  "name": "Flock — Stay close",
+  "short_name": "Flock",
+  "description": "Your people, in one place. Global messages, voice notes, videos, groups and moments.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#111214",
+  "theme_color": "#111214",
+  "categories": [
+    "social",
+    "communication"
+  ],
+  "icons": [
+    {
+      "src": "./flock-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
