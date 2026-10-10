@@ -1,6 +1,6 @@
 'use strict';
 
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,4 +17,7 @@ await cp(source, destination, {
     return !['.DS_Store', 'desktop.ini'].includes(base);
   }
 });
-console.log('Copied the shared Flock web app to mobile/www for Capacitor.');
+const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+const runtime = `'use strict';\nwindow.FLOCK_RUNTIME = Object.freeze({ version: ${JSON.stringify(packageJson.version)}, releaseSigned: false });\n`;
+await writeFile(path.join(destination, 'flock-runtime.js'), runtime, 'utf8');
+console.log('Copied the shared Flock web app to mobile/www for Capacitor at version ' + packageJson.version + '.');
