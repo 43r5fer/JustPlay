@@ -8,7 +8,7 @@ const os = require('node:os');
 const https = require('node:https');
 const crypto = require('node:crypto');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
-const { autoUpdater } = require('electron-updater');
+// Updates are checked against verified Minecraft-launcher releases, not unrelated repository releases.
 const { Client } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
 
@@ -39,35 +39,133 @@ function publishUpdateState(patch) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:update-status', updateState);
 }
 
+function parseLauncherVersion(value) {
+  const match = String(value || '').match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  return match ? match.slice(1).map(Number) : null;
+}
+
+function compareLauncherVersions(left, right) {
+  const a = parseLauncherVersion(left);
+  const b = parseLauncherVersion(right);
+  if (!a || !b) return 0;
+  for (let index = 0; index < 3; index++) {
+    if (a[index] !== b[index]) return a[index] - b[index];
+  }
+  return 0;
+}
+
+function requestGithubJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'JustPlay-Minecraft-Launcher',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    }, response => {
+      const chunks = [];
+      let totalBytes = 0;
+      response.on('data', chunk => {
+        totalBytes += chunk.length;
+        if (totalBytes > 5 * 1024 * 1024) {
+          request.destroy(new Error('GitHub response was unexpectedly large.'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('error', reject);
+      response.on('end', () => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`GitHub update endpoint returned HTTP ${response.statusCode || 'unknown'}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch {
+          reject(new Error('GitHub returned invalid update metadata.'));
+        }
+      });
+    });
+    request.setTimeout(12000, () => request.destroy(new Error('GitHub update check timed out.')));
+    request.on('error', reject);
+  });
+}
+
+let updateCheckPromise = null;
+
+async function checkForLauncherUpdates() {
+  if (updateCheckPromise) return updateCheckPromise;
+  publishUpdateState({
+    status: 'checking',
+    version: '',
+    downloadUrl: '',
+    releaseUrl: '',
+    message: 'Checking published JustPlay Minecraft launcher releases…',
+  });
+
+  updateCheckPromise = (async () => {
+    try {
+      const releases = await requestGithubJson('https://api.github.com/repos/43r5fer/JustPlay/releases?per_page=100');
+      if (!Array.isArray(releases)) throw new Error('Unexpected release metadata.');
+      // The Minecraft launcher series is v0.2.x. Later v0.3.x tags in this repository belong
+      // to a different app and must never be offered as a JustPlay Minecraft update.
+      const candidates = releases.filter(release => {
+        if (!release || release.draft || release.prerelease || !/^v0\.2\.\d+$/.test(String(release.tag_name || ''))) return false;
+        if (!Array.isArray(release.assets)) return false;
+        const exactUrl = `https://github.com/43r5fer/JustPlay/releases/download/${release.tag_name}/JustPlay.exe`;
+        return release.assets.some(asset => asset && asset.name === 'JustPlay.exe' && asset.browser_download_url === exactUrl);
+      }).sort((a, b) => compareLauncherVersions(b.tag_name, a.tag_name));
+
+      if (!candidates.length) throw new Error('No verified JustPlay Minecraft launcher release was found.');
+      const latest = candidates[0];
+      const latestVersion = latest.tag_name.slice(1);
+      const currentVersion = app.getVersion();
+      const asset = latest.assets.find(item => item && item.name === 'JustPlay.exe'
+        && item.browser_download_url === `https://github.com/43r5fer/JustPlay/releases/download/${latest.tag_name}/JustPlay.exe`);
+
+      if (compareLauncherVersions(latest.tag_name, currentVersion) > 0) {
+        publishUpdateState({
+          status: 'available',
+          version: latestVersion,
+          tag: latest.tag_name,
+          downloadUrl: asset.browser_download_url,
+          releaseUrl: latest.html_url,
+          percent: 0,
+          message: `JustPlay ${latestVersion} is available. Click Download update to get the official Windows installer.`,
+        });
+      } else {
+        publishUpdateState({
+          status: 'not-available',
+          version: latestVersion,
+          tag: latest.tag_name,
+          downloadUrl: '',
+          releaseUrl: latest.html_url || '',
+          message: `You're up to date. Installed version: ${currentVersion}; latest published Minecraft launcher: ${latestVersion}.`,
+        });
+      }
+    } catch (error) {
+      console.warn('[JustPlay updater] Update check failed.');
+      publishUpdateState({
+        status: 'error',
+        version: '',
+        downloadUrl: '',
+        releaseUrl: '',
+        message: 'JustPlay could not check for updates. Check your internet connection and try again.',
+      });
+    }
+    return updateState;
+  })();
+
+  try {
+    return await updateCheckPromise;
+  } finally {
+    updateCheckPromise = null;
+  }
+}
+
 function initializeAutoUpdater() {
   if (!app.isPackaged) return;
-
-  // Keep downloads user-initiated so an update never silently interrupts gameplay.
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.allowPrerelease = false;
-  autoUpdater.on('checking-for-update', () => publishUpdateState({ status: 'checking' }));
-  autoUpdater.on('update-available', info => publishUpdateState({
-    status: 'available', version: String(info.version || ''), percent: 0,
-    message: `JustPlay ${String(info.version || '')} is available. Download it here, then restart to install.`
-  }));
-  autoUpdater.on('update-not-available', () => publishUpdateState({ status: 'not-available', version: app.getVersion() }));
-  autoUpdater.on('download-progress', progress => publishUpdateState({
-    status: 'downloading', percent: Math.max(0, Math.min(100, Number(progress.percent) || 0)),
-    message: `Downloading update… ${Math.round(Number(progress.percent) || 0)}%`
-  }));
-  autoUpdater.on('update-downloaded', info => publishUpdateState({
-    status: 'downloaded', version: String(info.version || updateState.version || ''), percent: 100,
-    message: 'The update is downloaded and ready. Restart JustPlay to finish installing it.'
-  }));
-  autoUpdater.on('error', error => {
-    // Never echo raw updater errors into the renderer; some providers include URLs or paths.
-    console.warn('[JustPlay updater]', error && error.message ? error.message : 'Updater error');
-    publishUpdateState({ status: 'error', message: 'JustPlay could not check or download updates. Check your internet connection and try again.' });
-  });
-  autoUpdater.checkForUpdates().catch(() => {
-    publishUpdateState({ status: 'error', message: 'JustPlay could not check for updates. Check your internet connection and try again.' });
-  });
+  void checkForLauncherUpdates();
 }
 
 async function readLocalAccounts() {
@@ -1261,21 +1359,22 @@ ipcMain.handle('account:local-create', async (_event, username, password) => cre
 ipcMain.handle('account:local-sign-in', async (_event, username, password) => signInLocalAccount(username, password));
 ipcMain.handle('account:local-sign-out', async () => signOutLocalAccount());
 ipcMain.handle('app:update-status', async () => updateState);
-ipcMain.handle('app:update-check', async () => {
-  if (!app.isPackaged) return { status: 'unsupported', currentVersion: app.getVersion(), message: 'Update checks are available in the installed build.' };
-  try { await autoUpdater.checkForUpdates(); } catch { publishUpdateState({ status: 'error', message: 'JustPlay could not check for updates. Check your internet connection and try again.' }); }
-  return updateState;
-});
+ipcMain.handle('app:update-check', async () => checkForLauncherUpdates());
 ipcMain.handle('app:update-download', async () => {
-  if (!app.isPackaged) throw new Error('Update downloads are available in the installed build.');
-  if (updateState.status !== 'available') throw new Error('There is no ready update to download.');
-  await autoUpdater.downloadUpdate();
+  if (updateState.status !== 'available') throw new Error('There is no newer JustPlay release ready to download.');
+  const url = String(updateState.downloadUrl || '');
+  if (!/^https:\/\/github\.com\/43r5fer\/JustPlay\/releases\/download\/v0\.2\.\d+\/JustPlay\.exe$/.test(url)) {
+    throw new Error('The update download URL did not pass validation.');
+  }
+  await shell.openExternal(url);
+  publishUpdateState({
+    status: 'download-started',
+    message: `The JustPlay ${String(updateState.version || '')} installer opened in your browser. After it downloads, close JustPlay and run the downloaded installer.`,
+  });
   return { ok: true };
 });
 ipcMain.handle('app:update-install', async () => {
-  if (!app.isPackaged || updateState.status !== 'downloaded') throw new Error('Download an update before installing it.');
-  autoUpdater.quitAndInstall();
-  return { ok: true };
+  throw new Error('To finish updating, close JustPlay and run the installer downloaded in your browser.');
 });
 ipcMain.handle('app:disks', async () => (await getAvailableDisks()).map(d => ({ id: d.id, freeBytes: d.freeBytes, free: readableBytes(d.freeBytes), sizeBytes: d.sizeBytes, size: readableBytes(d.sizeBytes) })));
 ipcMain.handle('app:setup', async (_event, name) => setupJustPlay(name));

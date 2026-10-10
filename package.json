@@ -1,6 +1,6 @@
 {
   "name": "justplay-launcher",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "JustPlay — a clean Windows launcher for Minecraft Java Edition",
   "main": "electron/main.cjs",
   "author": "JustPlay contributors",
@@ -13,7 +13,6 @@
   "dependencies": {
     "minecraft-launcher-core": "^3.18.2",
     "msmc": "^5.0.5",
-    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^44.7.0",

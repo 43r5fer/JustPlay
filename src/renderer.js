@@ -31,31 +31,26 @@ function renderUpdateStatus(state) {
   if (!state || !$('updateBanner')) return;
   const banner = $('updateBanner');
   const button = $('updatePrimaryBtn');
-  const visible = ['available', 'downloading', 'downloaded', 'error'].includes(state.status);
+  const visible = ['available', 'download-started', 'error'].includes(state.status);
   banner.hidden = !visible;
   if (!visible) return;
 
   $('updateTitle').textContent = state.status === 'available' ? 'A new JustPlay version is available'
-    : state.status === 'downloading' ? 'Downloading your JustPlay update'
-    : state.status === 'downloaded' ? 'Your update is ready to install'
+    : state.status === 'download-started' ? 'Installer download started'
     : 'Update check failed';
   $('updateMessage').textContent = state.message || (state.version ? `JustPlay ${state.version} is available.` : 'Check your internet connection and try again.');
-  const percent = Math.max(0, Math.min(100, Number(state.percent) || 0));
-  $('updateProgressTrack').hidden = state.status !== 'downloading';
-  $('updateProgressFill').style.width = `${percent}%`;
-  button.disabled = state.status === 'downloading';
+  $('updateProgressTrack').hidden = true;
+  $('updateProgressFill').style.width = '0%';
+  button.disabled = state.status === 'download-started';
   if (state.status === 'available') {
     button.textContent = 'Download update';
     button.dataset.updateAction = 'download';
-  } else if (state.status === 'downloaded') {
-    button.textContent = 'Restart to install';
-    button.dataset.updateAction = 'install';
-  } else if (state.status === 'error') {
+  } else if (state.status === 'download-started') {
+    button.textContent = 'Download started';
+    button.dataset.updateAction = 'none';
+  } else {
     button.textContent = 'Try again';
     button.dataset.updateAction = 'check';
-  } else {
-    button.textContent = `Downloading ${Math.round(percent)}%`;
-    button.dataset.updateAction = 'none';
   }
 }
 
@@ -65,19 +60,17 @@ async function handleUpdateAction() {
   button.disabled = true;
   try {
     if (action === 'download') {
-      renderUpdateStatus({ status: 'downloading', percent: 0, message: 'Starting secure update download…' });
       await api.downloadUpdate();
-    } else if (action === 'install') {
-      await api.installUpdate();
-    } else if (action === 'check') {
-      await api.checkForUpdates();
       renderUpdateStatus(await api.getUpdateStatus());
+      showToast('The official JustPlay installer has been opened in your browser. Run it after the download finishes.');
+    } else if (action === 'check') {
+      renderUpdateStatus(await api.checkForUpdates());
     }
   } catch (error) {
     showToast(error.message || 'Could not update JustPlay.', 'error');
     renderUpdateStatus({ status: 'error', message: 'The update could not be completed. Check your connection and try again.' });
   } finally {
-    if (button.isConnected && button.dataset.updateAction !== 'install') button.disabled = false;
+    if (button.isConnected) button.disabled = false;
   }
 }
 
@@ -570,6 +563,27 @@ function bindEvents() {
     }
   });
   $('settingsSignInBtn').addEventListener('click', signInFlow);
+  $('checkUpdatesBtn').addEventListener('click', async () => {
+    const button = $('checkUpdatesBtn');
+    button.disabled = true;
+    button.textContent = 'Checking…';
+    try {
+      const state = await api.checkForUpdates();
+      renderUpdateStatus(state);
+      if (state.status === 'available') {
+        showToast(`JustPlay ${state.version} is available. Use the update banner to download it.`);
+      } else if (state.status === 'not-available') {
+        showToast(`You're up to date. Current version: ${state.currentVersion || 'installed'}.`);
+      } else {
+        showToast(state.message || 'Could not check for updates.', 'error');
+      }
+    } catch (error) {
+      showToast(error.message || 'Could not check for updates.', 'error');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = '<span aria-hidden="true">↻</span> Updates';
+    }
+  });
   $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
   $('updateDismissBtn').addEventListener('click', () => { $('updateBanner').hidden = true; });
   api.onUpdateStatus(renderUpdateStatus);
