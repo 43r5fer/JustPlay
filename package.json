@@ -1,25 +1,30 @@
 {
-  "name": "justplay-launcher",
-  "version": "0.3.1",
-  "description": "JustPlay — a Roblox game launcher for Windows",
+  "name": "flock-messenger",
+  "version": "1.0.0",
+  "description": "Flock — cross-platform messaging for your people",
   "main": "electron/main.cjs",
-  "author": "JustPlay contributors",
+  "author": "Flock contributors",
   "license": "MIT",
   "scripts": {
     "dev": "electron .",
     "dist:win": "electron-builder --win nsis --publish never",
-    "check": "node --check electron/main.cjs && node --check electron/roblox.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs"
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs && node --check scripts/build-mobile.mjs && node --check scripts/patch-android-manifest.mjs",
+    "mobile:prepare": "node scripts/build-mobile.mjs",
+    "mobile:android": "npm run mobile:prepare && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.3",
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^44.7.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/cli": "8.5.3"
   },
   "build": {
-    "appId": "com.justplay.launcher",
-    "productName": "JustPlay",
+    "appId": "com.flock.messaging",
+    "productName": "Flock",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -44,7 +49,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "JustPlay"
+      "shortcutName": "Flock"
     },
     "publish": [
       {
@@ -53,6 +58,7 @@
         "repo": "JustPlay",
         "releaseType": "release"
       }
-    ]
+    ],
+    "artifactName": "Flock-Setup.${ext}"
   }
 }
