@@ -15,7 +15,7 @@
 - [x] Android update prompt and Google Play in-app update bridge added
 - [x] Android target/compile SDK set to API 36
 - [ ] Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD secrets to build a signed Play Store AAB
-- [x] Build and verify the combined Windows/Android v1.0.0 workflow (GitHub Actions success)
+- [ ] Build and verify the combined Windows/Android v1.0.2 workflow
 - [ ] Install the APK on a real Android device
 - [ ] Test email confirmation and password recovery flows using configured Supabase Auth settings
 - [ ] Test friend requests, direct messages, realtime sent/read ticks, message edit/delete, media uploads and status expiry
