@@ -121,7 +121,7 @@ JustPlay allows users to enter the app, choose a display name, install versions,
 
 ## v0.1.1 sign-in diagnostics update
 
-The next Windows build preserves safe structured authentication error details, including HTTP status and common Xbox/Minecraft error fields from nested response data. Secrets, token fields, authorization headers, and raw request/config objects are redacted or omitted. This fixes the prior diagnostic output that only showed `{"type":"[object Object]"}`; it helps identify the cause but does not bypass ownership or account restrictions.
+The v0.1.1 Windows build preserves safe structured authentication error details, including HTTP status and common Xbox/Minecraft error fields from nested response data. Secrets, token fields, authorization headers, and raw request/config objects are redacted or omitted. This fixes the prior diagnostic output that only showed `{"type":"[object Object]"}`; it helps identify the cause but does not bypass ownership or account restrictions.
 
 A local display-name profile remains available for using the launcher UI, browsing versions, and organizing mod/resource-pack files without signing in. Actual Minecraft gameplay still needs valid Minecraft Java access. JustPlay does not offer cracked authentication.
 
