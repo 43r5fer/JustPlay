@@ -160,6 +160,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Flock ${{ github.ref_name }}
-          tag_name: flock-v1.0.2
+          tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: release-files/*
