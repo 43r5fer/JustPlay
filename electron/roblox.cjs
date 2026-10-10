@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 
 const OAUTH_BASE = 'https://apis.roblox.com/oauth/v1';
-const REDIRECT_URI = 'http://127.0.0.1:53682/callback';
+const REDIRECT_URI = 'http://localhost:53682/callback';
 const USERINFO_URL = OAUTH_BASE + '/userinfo';
 const AUTH_URL = OAUTH_BASE + '/authorize';
 const TOKEN_URL = OAUTH_BASE + '/token';
