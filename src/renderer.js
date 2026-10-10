@@ -25,6 +25,60 @@ function showToast(message, kind = 'normal', duration = 4800) {
   toastTimer = setTimeout(() => toast.classList.remove('visible'), duration);
 }
 
+function renderUpdateStatus(state) {
+  if (!state || !$('updateBanner')) return;
+  const banner = $('updateBanner');
+  const button = $('updatePrimaryBtn');
+  const visible = ['available', 'downloading', 'downloaded', 'error'].includes(state.status);
+  banner.hidden = !visible;
+  if (!visible) return;
+
+  $('updateTitle').textContent = state.status === 'available' ? 'A new JustPlay version is available'
+    : state.status === 'downloading' ? 'Downloading your JustPlay update'
+    : state.status === 'downloaded' ? 'Your update is ready to install'
+    : 'Update check failed';
+  $('updateMessage').textContent = state.message || (state.version ? `JustPlay ${state.version} is available.` : 'Check your internet connection and try again.');
+  const percent = Math.max(0, Math.min(100, Number(state.percent) || 0));
+  $('updateProgressTrack').hidden = state.status !== 'downloading';
+  $('updateProgressFill').style.width = `${percent}%`;
+  button.disabled = state.status === 'downloading';
+  if (state.status === 'available') {
+    button.textContent = 'Download update';
+    button.dataset.updateAction = 'download';
+  } else if (state.status === 'downloaded') {
+    button.textContent = 'Restart to install';
+    button.dataset.updateAction = 'install';
+  } else if (state.status === 'error') {
+    button.textContent = 'Try again';
+    button.dataset.updateAction = 'check';
+  } else {
+    button.textContent = `Downloading ${Math.round(percent)}%`;
+    button.dataset.updateAction = 'none';
+  }
+}
+
+async function handleUpdateAction() {
+  const button = $('updatePrimaryBtn');
+  const action = button.dataset.updateAction;
+  button.disabled = true;
+  try {
+    if (action === 'download') {
+      renderUpdateStatus({ status: 'downloading', percent: 0, message: 'Starting secure update download…' });
+      await api.downloadUpdate();
+    } else if (action === 'install') {
+      await api.installUpdate();
+    } else if (action === 'check') {
+      await api.checkForUpdates();
+      renderUpdateStatus(await api.getUpdateStatus());
+    }
+  } catch (error) {
+    showToast(error.message || 'Could not update JustPlay.', 'error');
+    renderUpdateStatus({ status: 'error', message: 'The update could not be completed. Check your connection and try again.' });
+  } finally {
+    if (button.isConnected && button.dataset.updateAction !== 'install') button.disabled = false;
+  }
+}
+
 function goTo(page) {
   if (!document.getElementById(`page-${page}`)) return;
   activePage = page;
@@ -195,6 +249,8 @@ function renderSettings() {
   if (!appState) return;
   $('settingsRootPath').textContent = appState.rootPath || 'Not set up yet';
   $('settingsAccountName').textContent = appState.accountName || 'Not signed in';
+  $('localAccountCurrent').textContent = appState.localAccountName || 'Not signed in this session';
+  $('signOutLocalAccountBtn').hidden = !appState.localAccountName;
   $('ramSelect').value = appState.maxRam || '4G';
   $('diskSummary').innerHTML = appState.rootPath
     ? `<span class="status-dot"></span>Created on ${esc(appState.storageDrive || 'your selected drive')}. New profile data stays under this JustPlay folder.`
@@ -203,10 +259,10 @@ function renderSettings() {
 
 function renderHeader() {
   if (!appState) return;
-  const name = appState.accountName || appState.displayName || 'New player';
+  const name = appState.accountName || appState.localAccountName || appState.displayName || 'New player';
   $('sidebarPlayerName').textContent = name;
   $('avatarGlyph').textContent = (name.trim()[0] || 'J').toUpperCase();
-  $('accountStatus').textContent = appState.accountName ? 'Microsoft connected' : 'Local display profile';
+  $('accountStatus').textContent = appState.accountName ? 'Minecraft connected' : appState.localAccountName ? 'JustPlay account' : 'Local display profile';
   $('signInLabel').textContent = appState.accountName ? appState.accountName : 'Sign in with Microsoft';
   $('settingsSignInBtn').textContent = appState.accountName ? 'Connected' : 'Sign in';
   $('signOutBtn').classList.toggle('hidden', !appState.accountName);
@@ -346,6 +402,50 @@ function bindEvents() {
   document.querySelectorAll('[data-open-folder]').forEach(el => el.addEventListener('click', () => openFolder(el.dataset.openFolder)));
   $('signInBtn').addEventListener('click', signInFlow);
   $('settingsSignInBtn').addEventListener('click', signInFlow);
+  $('updatePrimaryBtn').addEventListener('click', handleUpdateAction);
+  $('updateDismissBtn').addEventListener('click', () => { $('updateBanner').hidden = true; });
+  api.onUpdateStatus(renderUpdateStatus);
+
+  $('createLocalAccountBtn').addEventListener('click', async () => {
+    const username = $('justplayUsername').value;
+    const password = $('justplayPassword').value;
+    try {
+      const result = await api.createLocalAccount(username, password);
+      appState = result.state || await api.getState();
+      $('justplayPassword').value = '';
+      $('localAccountFeedback').textContent = `Local JustPlay account created and signed in as ${result.localAccountName}.`;
+      renderHeader(); renderSettings();
+      showToast('JustPlay local account created.');
+    } catch (error) {
+      $('localAccountFeedback').textContent = error.message || 'Could not create this account.';
+      showToast(error.message || 'Could not create this account.', 'error');
+    }
+  });
+  $('justplayAccountForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    try {
+      const result = await api.signInLocalAccount($('justplayUsername').value, $('justplayPassword').value);
+      appState = result.state || await api.getState();
+      $('justplayPassword').value = '';
+      $('localAccountFeedback').textContent = `Signed in as ${result.localAccountName} on this PC.`;
+      renderHeader(); renderSettings();
+      showToast(`Signed in to JustPlay as ${result.localAccountName}.`);
+    } catch (error) {
+      $('localAccountFeedback').textContent = error.message || 'Could not sign in.';
+      showToast(error.message || 'Could not sign in.', 'error');
+    }
+  });
+  $('signOutLocalAccountBtn').addEventListener('click', async () => {
+    try {
+      const result = await api.signOutLocalAccount();
+      appState = result.state || await api.getState();
+      $('localAccountFeedback').textContent = 'Signed out of the local JustPlay account.';
+      renderHeader(); renderSettings();
+      showToast('Signed out of the local JustPlay account.');
+    } catch (error) {
+      showToast(error.message || 'Could not sign out.', 'error');
+    }
+  });
   $('docsSignInBtn').addEventListener('click', signInFlow);
   $('signOutBtn').addEventListener('click', async () => {
     try { await api.signOut(); appState = await api.getState(); renderHeader(); renderSettings(); updateSelectedDetail(); showToast('Signed out of this JustPlay session.'); }
@@ -425,6 +525,9 @@ async function handleRemoveFile(event) {
 
 async function init() {
   bindEvents();
+  try {
+    renderUpdateStatus(await api.getUpdateStatus());
+  } catch { /* Update checks are not available in a development launch. */ }
   try {
     appState = await api.getState();
     renderHeader(); renderSettings();
