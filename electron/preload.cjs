@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('justplay', {
   listRobloxGames: query => ipcRenderer.invoke('roblox:games', query),
   launchRobloxGame: placeId => ipcRenderer.invoke('roblox:launch', placeId),
   getRobloxFavorites: () => ipcRenderer.invoke('roblox:favorites'),
+  getRobloxFavoriteGames: () => ipcRenderer.invoke('roblox:favorites-games'),
   toggleRobloxFavorite: placeId => ipcRenderer.invoke('roblox:favorite-toggle', placeId),
   getState: () => ipcRenderer.invoke('app:state'),
   getDisks: () => ipcRenderer.invoke('app:disks'),
