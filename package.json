@@ -40,7 +40,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "JustPlay.${ext}",
+      "artifactName": "Flock-Setup.${ext}",
       "icon": "assets/justplay.ico",
       "verifyUpdateCodeSignature": false
     },
