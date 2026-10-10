@@ -117,3 +117,12 @@ If Microsoft sign-in opens successfully but Xbox/Minecraft verification fails, t
 ## Local profile vs. game authentication
 
 JustPlay allows users to enter the app, choose a display name, install versions, and manage mods/resource packs without logging in immediately. The display name is only a local launcher profile; it is not a Minecraft identity and does not unlock multiplayer or game ownership. JustPlay will require valid Minecraft Java account authentication when starting the game. This project intentionally does not impersonate TLauncher or implement cracked/offline authentication that bypasses game access checks.
+
+
+## v0.1.1 sign-in diagnostics update
+
+The next Windows build preserves safe structured authentication error details, including HTTP status and common Xbox/Minecraft error fields from nested response data. Secrets, token fields, authorization headers, and raw request/config objects are redacted or omitted. This fixes the prior diagnostic output that only showed `{"type":"[object Object]"}`; it helps identify the cause but does not bypass ownership or account restrictions.
+
+A local display-name profile remains available for using the launcher UI, browsing versions, and organizing mod/resource-pack files without signing in. Actual Minecraft gameplay still needs valid Minecraft Java access. JustPlay does not offer cracked authentication.
+
+To troubleshoot a new failure, inspect `%APPDATA%\justplay-launcher\logs\microsoft-auth.log` and share only the safe `stage`, `errorCode`, `message`, and `details` fields after removing personal information. Never share tokens or authorization codes.
