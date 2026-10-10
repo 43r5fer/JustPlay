@@ -281,6 +281,7 @@ function scrubAuthDiagnostic(value) {
     .replace(/([?&](?:code|access_token|refresh_token|client_secret|id_token)=)[^&\s]+/gi, '$1[redacted]')
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
     .replace(/(\b(?:access_token|refresh_token|id_token|client_secret|password)=)[^&\s,}]+/gi, '$1[redacted]')
+    .replace(/("(?:access_token|refresh_token|id_token|client_secret|password|authorization|cookie|token)"\s*:\s*")[^"]*"/gi, '$1[redacted]"')
     .slice(0, 1200);
 }
 
@@ -345,7 +346,7 @@ function safeAuthDiagnosticValue(value, depth = 0, seen = new WeakSet(), keyName
 
   const out = {};
   for (const [childKey, childValue] of entries.slice(0, 36)) {
-    if (blocked.test(childKey) || sensitiveKey.test?.(childKey)) continue;
+    if (blocked.test(childKey) || sensitiveKey.test(childKey)) continue;
     if (!allowed.has(childKey)) continue;
     out[childKey] = safeAuthDiagnosticValue(childValue, depth + 1, seen, childKey);
   }
