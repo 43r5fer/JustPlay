@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron .",
     "dist:win": "electron-builder --win nsis --publish never",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs"
+    "check": "node --check electron/main.cjs && node --check electron/roblox.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs"
   },
   "dependencies": {
     "minecraft-launcher-core": "^3.18.2",
