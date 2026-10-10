@@ -159,6 +159,9 @@ Deno.serve(async (req: Request) => {
     if (action === "change-password") {
       const current = await lookupSession(req);
       if (!current) return response(401, { error: "Your Flock session expired. Please sign in again." });
+      if (!(await takeLimit("password-change", ip + "\n" + current.session.user_id, 5, 900))) {
+        return response(429, { error: "Too many password-change attempts. Wait 15 minutes and try again." });
+      }
       const oldPassword = String(body.password ?? "");
       const newPassword = String(body.newPassword ?? "");
       if (newPassword.length < 8 || newPassword.length > 128) return response(400, { error: "New password must be 8–128 characters long." });
