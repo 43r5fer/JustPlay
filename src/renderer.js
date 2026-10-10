@@ -344,9 +344,9 @@ async function addFriendByCode(rawCode) {
   assertUser();
   const code = cleanFriendCode(rawCode);
   if (code.length !== 10) throw new Error('Enter the full 10-digit friend code.');
-  const { data: target, error: findError } = await db.from('flock_profiles')
-    .select('id,username,display_name,friend_code').eq('friend_code', code).maybeSingle();
+  const { data: matches, error: findError } = await db.rpc('flock_find_friend_code', { p_friend_code: code });
   if (findError) throw findError;
+  const target = Array.isArray(matches) ? matches[0] : matches;
   if (!target) throw new Error('That friend code could not be found.');
   if (target.id === user.id) throw new Error('That is your own friend code.');
   const { data: existing, error: existingError } = await db.from('flock_friendships').select('*')
