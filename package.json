@@ -1,7 +1,7 @@
 {
   "name": "justplay-launcher",
-  "version": "0.2.3",
-  "description": "JustPlay — a clean Windows launcher for Minecraft Java Edition",
+  "version": "0.3.0",
+  "description": "JustPlay — a Roblox game launcher for Windows",
   "main": "electron/main.cjs",
   "author": "JustPlay contributors",
   "license": "MIT",
