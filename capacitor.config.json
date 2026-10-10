@@ -1,0 +1,19 @@
+{
+  "appId": "com.flock.messaging",
+  "appName": "Flock",
+  "webDir": "mobile/www",
+  "android": {
+    "path": "android",
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 700,
+      "backgroundColor": "#111214",
+      "showSpinner": false
+    }
+  }
+}
