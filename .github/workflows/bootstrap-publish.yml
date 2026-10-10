@@ -1,0 +1,125 @@
+name: Bootstrap JustPlay, deploy the site, and build the first release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  bootstrap:
+    name: Install complete project source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reassemble and validate source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .justplay-source/part-*.b64 | base64 --decode > "$RUNNER_TEMP/JustPlay.zip"
+          unzip -t "$RUNNER_TEMP/JustPlay.zip"
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          unzip -q "$RUNNER_TEMP/JustPlay.zip" -d "$RUNNER_TEMP/unpacked"
+          test -f "$RUNNER_TEMP/unpacked/JustPlay/package.json"
+          test -f "$RUNNER_TEMP/unpacked/JustPlay/site/index.html"
+          test -f "$RUNNER_TEMP/unpacked/JustPlay/electron/main.cjs"
+          cp -a "$RUNNER_TEMP/unpacked/JustPlay/." "$GITHUB_WORKSPACE/"
+          rm -rf .justplay-source
+          rm -f .github/workflows/bootstrap-publish.yml
+
+      - name: Commit complete source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Add complete JustPlay launcher, website, and release workflows"
+            git push origin main
+          fi
+
+      - name: Upload source archive for Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: justplay-source
+          path: ${{ runner.temp }}/JustPlay.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-pages:
+    name: Publish public landing page
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out completed source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload landing page
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy landing page
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Report website URL
+        run: echo "Website deployed at https://43r5fer.github.io/JustPlay/"
+
+  build-release:
+    name: Build and publish Windows installer
+    needs: bootstrap
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download source archive
+        uses: actions/download-artifact@v4
+        with:
+          name: justplay-source
+          path: ${{ runner.temp }}/justplay-source
+      - name: Extract complete source
+        shell: pwsh
+        run: |
+          Expand-Archive -Path "$env:RUNNER_TEMP\justplay-source\JustPlay.zip" -DestinationPath "$env:RUNNER_TEMP\unpacked" -Force
+          Copy-Item "$env:RUNNER_TEMP\unpacked\JustPlay\*" "$env:GITHUB_WORKSPACE" -Recurse -Force
+      - name: Install dependencies
+        run: npm install
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Build JustPlay.exe
+        run: npm run dist:win
+      - name: Upload installer build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JustPlay-Windows-Installer
+          path: dist/JustPlay.exe
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish first public release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: JustPlay v0.1.0
+          tag_name: v0.1.0
+          target_commitish: main
+          generate_release_notes: true
+          files: dist/JustPlay.exe
