@@ -3,6 +3,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('justplay', {
+  robloxState: () => ipcRenderer.invoke('roblox:state'),
+  configureRoblox: clientId => ipcRenderer.invoke('roblox:configure', clientId),
+  openRobloxOAuthDashboard: () => ipcRenderer.invoke('roblox:open-oauth-dashboard'),
+  openRobloxSignup: () => ipcRenderer.invoke('roblox:open-signup'),
+  signInRoblox: () => ipcRenderer.invoke('roblox:sign-in'),
+  signOutRoblox: () => ipcRenderer.invoke('roblox:sign-out'),
+  listRobloxGames: query => ipcRenderer.invoke('roblox:games', query),
+  launchRobloxGame: placeId => ipcRenderer.invoke('roblox:launch', placeId),
+  getRobloxFavorites: () => ipcRenderer.invoke('roblox:favorites'),
+  toggleRobloxFavorite: placeId => ipcRenderer.invoke('roblox:favorite-toggle', placeId),
   getState: () => ipcRenderer.invoke('app:state'),
   getDisks: () => ipcRenderer.invoke('app:disks'),
   setup: name => ipcRenderer.invoke('app:setup', name),
