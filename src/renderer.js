@@ -219,8 +219,8 @@ function isEntryInstalled(entry) {
 function entryKindLabel(entry) {
   if (!entry) return 'Release';
   if (entry.kind === 'forge' || entry.kind === 'installed-forge') return 'Forge';
+  if (entry.kind === 'fabric' || entry.kind === 'installed-fabric') return 'Fabric';
   if (entry.kind === 'optifine' || entry.kind === 'optifine-site' || entry.kind === 'installed-optifine') return 'OptiFine';
-  if (entry.kind === 'installed-fabric') return 'Fabric';
   if (entry.kind === 'installed-quilt') return 'Quilt';
   if (entry.kind === 'installed-neoforge') return 'NeoForge';
   if (entry.kind === 'installed-custom') return 'Custom';
@@ -232,6 +232,7 @@ function entryKindLabel(entry) {
 function entryDescription(entry) {
   if (!entry) return 'Select a build from the version library.';
   if (entry.kind === 'forge') return `Official Forge installer · Minecraft ${entry.mcVersion} · Forge ${entry.loaderVersion}. JustPlay will download the installer from Forge's Maven repository and ask the launcher core to prepare this profile.`;
+  if (entry.kind === 'fabric') return `Official Fabric Loader for Minecraft ${entry.mcVersion}. JustPlay downloads Fabric's official installer and prepares an isolated profile in your Game Versions folder.`;
   if (entry.kind === 'optifine' || entry.kind === 'optifine-site') return 'OptiFine is distributed through its official website. Open the source page and follow the installer instructions; JustPlay will not bypass ads, verification, or installer prompts.';
   if (entry.kind?.startsWith('installed-')) return `Installed profile in your Game Versions library. Base Minecraft: ${entry.mcVersion || 'unknown'}.`;
   if (entry.type === 'snapshot') return 'A Minecraft Java Edition snapshot from Mojang. Snapshots may be experimental and can affect compatibility with worlds.';
@@ -255,11 +256,12 @@ function updateSelectedDetail() {
   if (!entry) action.innerHTML = 'Choose a version <span>→</span>';
   else if (entry.kind === 'optifine' || entry.kind === 'optifine-site') action.innerHTML = 'Open official downloads <span>↗</span>';
   else if (entry.kind === 'forge') action.innerHTML = `${isEntryInstalled(entry) ? 'Play Forge' : 'Install Forge & play'} <span>→</span>`;
+  else if (entry.kind === 'fabric') action.innerHTML = `${isEntryInstalled(entry) ? 'Play Fabric' : 'Install Fabric & play'} <span>→</span>`;
   else action.innerHTML = `${isEntryInstalled(entry) ? 'Play now' : 'Install & play'} <span>→</span>`;
   $('quickSelectedVersion').textContent = selectedEntry?.label || selectedEntry?.id || 'Latest Release';
   $('quickSelectedDetail').textContent = entry ? `${entryKindLabel(entry)} · ${isEntryInstalled(entry) ? 'Installed' : 'Available to install'}` : 'Choose a version to continue';
   $('quickLaunchBtn').disabled = !entry || !appState?.setupComplete;
-  $('quickLaunchBtn').innerHTML = entry ? `${isEntryInstalled(entry) ? 'Play now' : (entry.kind === 'forge' ? 'Install Forge & play' : entry.kind?.includes('optifine') ? 'Get OptiFine' : 'Install & play')} <span>→</span>` : 'Install & play <span>→</span>';
+  $('quickLaunchBtn').innerHTML = entry ? `${isEntryInstalled(entry) ? 'Play now' : (entry.kind === 'forge' ? 'Install Forge & play' : entry.kind === 'fabric' ? 'Install Fabric & play' : entry.kind?.includes('optifine') ? 'Get OptiFine' : 'Install & play')} <span>→</span>` : 'Install & play <span>→</span>';
   const canUseSavedSession = Boolean(entry && appState?.cachedSessionAvailable && appState?.setupComplete && isEntryInstalled(entry) && !['optifine', 'optifine-site'].includes(entry.kind));
   $('quickOfflineBtn').hidden = !canUseSavedSession;
   $('quickOfflineBtn').disabled = !canUseSavedSession;
@@ -278,6 +280,7 @@ function itemsForFilter() {
   if (activeFilter === 'snapshot') return catalog.snapshot || [];
   if (activeFilter === 'legacy') return catalog.legacy || [];
   if (activeFilter === 'forge') return catalog.forge || [];
+  if (activeFilter === 'fabric') return catalog.fabric || [];
   if (activeFilter === 'optifine') return catalog.optifine || [];
   if (activeFilter === 'installed') {
     const vanilla = [...(catalog.release || []), ...(catalog.snapshot || []), ...(catalog.legacy || [])].filter(v => v.installed);
@@ -302,7 +305,7 @@ function renderVersionList() {
   list.innerHTML = visibleEntries.map((entry, index) => {
     const selected = selectedEntry && entry.id === selectedEntry.id && entry.kind === selectedEntry.kind;
     const kind = entryKindLabel(entry).toLowerCase();
-    const chipClass = ['release','snapshot','forge','optifine'].includes(kind) ? kind : '';
+    const chipClass = ['release','snapshot','forge','fabric','optifine'].includes(kind) ? kind : '';
     const date = entry.releaseTime ? new Date(entry.releaseTime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : (entry.kind?.startsWith('installed-') ? 'Local profile' : (entry.kind === 'forge' ? `MC ${entry.mcVersion}` : 'Official catalog'));
     const itemLabel = entry.label || entry.id;
     return `<button class="version-row ${selected ? 'active' : ''}" role="listitem" data-entry-index="${index}" aria-pressed="${!!selected}">
@@ -338,6 +341,7 @@ function renderCounts() {
   $('countSnapshot').textContent = (catalog.snapshot?.length || 0).toLocaleString();
   $('countLegacy').textContent = (catalog.legacy?.length || 0).toLocaleString();
   $('countForge').textContent = (catalog.forge?.length || 0).toLocaleString();
+  $('countFabric').textContent = (catalog.fabric?.length || 0).toLocaleString();
   $('countOptifine').textContent = (catalog.optifine?.length || 0).toLocaleString();
   const vanillaInstalled = [...(catalog.release || []), ...(catalog.snapshot || []), ...(catalog.legacy || [])].filter(v => v.installed).length;
   $('countInstalled').textContent = ((catalog.installed?.length || 0) + vanillaInstalled).toLocaleString();
@@ -420,7 +424,7 @@ async function launchSelected(mode = 'online') {
     return;
   }
   lastProgress = 1;
-  setProgress({ title: entry.kind === 'forge' ? 'Preparing Forge…' : (isEntryInstalled(entry) ? 'Launching Minecraft…' : 'Installing Minecraft…'), message: entry.kind === 'forge' ? `Preparing Forge for ${entry.mcVersion}` : `Preparing ${entry.id}`, progress: 1 });
+  setProgress({ title: entry.kind === 'forge' ? 'Preparing Forge…' : entry.kind === 'fabric' ? (isEntryInstalled(entry) ? 'Launching Fabric…' : 'Installing Fabric…') : (isEntryInstalled(entry) ? 'Launching Minecraft…' : 'Installing Minecraft…'), message: entry.kind === 'forge' ? `Preparing Forge for ${entry.mcVersion}` : entry.kind === 'fabric' ? `Preparing Fabric for ${entry.mcVersion}` : `Preparing ${entry.id}`, progress: 1 });
   try {
     const result = await api.launch(entry, mode);
     hideProgress();
@@ -428,8 +432,9 @@ async function launchSelected(mode = 'online') {
     if (result?.started) {
       showToast(mode === 'cached' ? 'Starting this already-installed profile with your recent saved Minecraft session. Full offline operation still depends on local game files being complete.' : 'Minecraft is starting. This profile is ready to launch again from JustPlay.');
       await refreshCatalog({ silent: true });
-      if (entry.kind === 'forge') {
-        const installed = catalog?.installed?.find(v => v.kind === 'installed-forge' && v.mcVersion === entry.mcVersion);
+      if (entry.kind === 'forge' || entry.kind === 'fabric') {
+        await refreshCatalog({ silent: true });
+        const installed = (catalog?.installed || []).find(v => v.kind === (entry.kind === 'forge' ? 'installed-forge' : 'installed-fabric') && v.mcVersion === entry.mcVersion);
         if (installed) selectEntry(installed);
       }
     }
@@ -649,6 +654,7 @@ function bindEvents() {
   });
   $('setupForm').addEventListener('submit', setupSubmit);
   $('openForgeSource').addEventListener('click', () => api.openOfficial('forge').catch(e => showToast(e.message, 'error')));
+  $('openFabricSource').addEventListener('click', () => api.openOfficial('fabric').catch(e => showToast(e.message, 'error')));
   $('openOptifineSource').addEventListener('click', () => api.openOfficial('optifine').catch(e => showToast(e.message, 'error')));
   $('docsForgeBtn').addEventListener('click', () => api.openOfficial('forge').catch(e => showToast(e.message, 'error')));
   $('docsOptifineBtn').addEventListener('click', () => api.openOfficial('optifine').catch(e => showToast(e.message, 'error')));
@@ -656,8 +662,8 @@ function bindEvents() {
   $('toastClose').addEventListener('click', () => $('messageToast').classList.remove('visible'));
   api.onMinecraftStatus(status => {
     if (!status) return;
-    if (['progress', 'installing', 'downloading-forge'].includes(status.state)) {
-      const title = status.state === 'downloading-forge' ? 'Downloading Forge installer…' : status.state === 'installing' ? 'Installing game files…' : 'Preparing Minecraft…';
+    if (['progress', 'installing', 'downloading-forge', 'installing-fabric'].includes(status.state)) {
+      const title = status.state === 'downloading-forge' ? 'Downloading Forge installer…' : status.state === 'installing-fabric' ? 'Installing Fabric Loader…' : status.state === 'installing' ? 'Installing game files…' : 'Preparing Minecraft…';
       setProgress({ title, message: status.message || 'Preparing files…', progress: status.progress ?? null });
     } else if (status.state === 'ready') {
       $('progressMessage').textContent = status.message || 'Minecraft started.';
