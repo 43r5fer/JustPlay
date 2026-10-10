@@ -30,22 +30,22 @@
         <div class="auth-tabs" role="tablist"><button id="showSignInTab" class="auth-tab active" type="button" role="tab">Sign in</button><button id="showSignUpTab" class="auth-tab" type="button" role="tab">Create account</button></div>
         <div class="auth-card-heading"><div class="eyebrow"><span></span> WELCOME TO FLOCK</div><h2 id="authHeading">Good to see you.</h2><p id="authSubheading">Sign in and pick up right where you left off.</p></div>
         <form id="signInForm" class="auth-form">
-          <label for="signInEmail">Email address</label><input id="signInEmail" type="email" autocomplete="email" required placeholder="you@example.com">
+          <label for="signInUsername">Your Flock username</label><input id="signInUsername" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]{3,24}" required placeholder="your_unique_name">
           <label for="signInPassword">Password</label><div class="password-field"><input id="signInPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Your password"><button type="button" class="reveal-password" data-toggle-password="signInPassword" aria-label="Show password">◉</button></div>
+          <label class="remember-row"><input id="rememberMe" type="checkbox" checked><span><strong>Remember me</strong><small>Stay signed in on this device for 30 days.</small></span></label>
           <button class="button button-primary button-wide" type="submit"><span>Sign in to Flock</span><span class="button-arrow">→</span></button>
-          <button id="forgotPasswordBtn" class="text-button centered" type="button">Forgot password?</button>
         </form>
         <form id="signUpForm" class="auth-form" hidden>
           <label for="signUpUsername">Username</label><input id="signUpUsername" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]{3,24}" required placeholder="your_unique_name">
           <div class="field-hint">3–24 letters, numbers, dots, underscores or hyphens.</div>
-          <label for="signUpEmail">Email address</label><input id="signUpEmail" type="email" autocomplete="email" required placeholder="you@example.com">
-          <label for="signUpPassword">Password</label><div class="password-field"><input id="signUpPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><button type="button" class="reveal-password" data-toggle-password="signUpPassword" aria-label="Show password">◉</button></div>
-          <label for="signUpConfirm">Confirm password</label><div class="password-field"><input id="signUpConfirm" type="password" autocomplete="new-password" minlength="8" required placeholder="Type it again"><button type="button" class="reveal-password" data-toggle-password="signUpConfirm" aria-label="Show password">◉</button></div>
+          <label for="signUpPassword">Password</label><div class="password-field"><input id="signUpPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="At least 8 characters"><button type="button" class="reveal-password" data-toggle-password="signUpPassword" aria-label="Show password">◉</button></div>
+          <label for="signUpConfirm">Confirm password</label><div class="password-field"><input id="signUpConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Type it again"><button type="button" class="reveal-password" data-toggle-password="signUpConfirm" aria-label="Show password">◉</button></div>
+          <label class="remember-row"><input id="signUpRememberMe" type="checkbox" checked><span><strong>Remember me</strong><small>Keep Flock ready when you reopen the app.</small></span></label>
           <button class="button button-primary button-wide" type="submit"><span>Create my Flock account</span><span class="button-arrow">→</span></button>
           <p class="terms-note">By creating an account, you agree to treat people kindly and not share content you don't have permission to share.</p>
         </form>
         <div id="authFeedback" class="feedback" aria-live="polite" role="status"></div>
-        <div class="auth-footer"><span>✦</span><p>One account. Your conversations across devices.</p></div>
+        <div class="auth-footer"><span>✦</span><p>Your Flock account. Your sessions. Your people.</p></div>
       </section>
     </main>
     <footer class="auth-bottom"><span>FLOCK <b>·</b> BUILT FOR YOUR PEOPLE</span><span>Desktop & mobile</span></footer>
