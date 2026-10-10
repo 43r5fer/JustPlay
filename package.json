@@ -1,6 +1,6 @@
 {
   "name": "justplay-launcher",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "JustPlay — a Roblox game launcher for Windows",
   "main": "electron/main.cjs",
   "author": "JustPlay contributors",
