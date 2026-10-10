@@ -1,5 +1,12 @@
 # Flock release notes
 
+## v1.0.1 — Friend-code privacy hotfix
+
+- Restricted profile rows to the signed-in user, accepted/pending friends, and members who share a conversation.
+- Added a server-checked `flock_find_friend_code` RPC so a friend code returns only the exact requested profile instead of exposing every profile row.
+- Restricted the profile lookup function to authenticated users and added server-side checks preventing duplicate or blocked friend requests.
+- Updated the renderer to use the scoped RPC.
+
 ## v1.0.0 — Flock cross-platform messaging rebuild
 
 - Replaced the previous Roblox launcher application with **Flock**, a global account-based messenger.
@@ -12,7 +19,7 @@
 
 ### Notes
 
-- The Android CI artifact is debug-signed for installation/testing. Public store release needs a dedicated release keystore.
+- The Android artifact is debug-signed for installation/testing. Public store release needs a dedicated release keystore.
 - Flock is not audited as end-to-end encrypted; message content is stored in Supabase with RLS and media access controls.
 - Verify email confirmation, realtime updates and camera/microphone behavior on real devices before broad distribution.
 
