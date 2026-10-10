@@ -464,7 +464,7 @@ function registerRobloxIpc({ ipcMain, app, shell, safeStorage }) {
     }
   });
   ipcMain.handle('roblox:sign-in', () => signIn(app, shell, safeStorage));
-  ipcMain.handle('roblox:sign-out', () => signOut(app));
+  ipcMain.handle('roblox:sign-out', () => signOut(app, safeStorage));
   ipcMain.handle('roblox:games', (_event, query) => listGames(query));
   ipcMain.handle('roblox:launch', (_event, placeId) => launchGame(shell, placeId));
   ipcMain.handle('roblox:favorites', () => getFavoritePlaceIds(app));
