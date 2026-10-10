@@ -34,7 +34,7 @@
         <p>Keep your game, mods and packs in one tidy place.</p>
         <button class="text-button" data-page="docs">Read the quick guide <span>↗</span></button>
       </div>
-      <div class="sidebar-footer"><span class="pulse"></span> JustPlay Preview <span class="version-tag">0.2.2</span></div>
+      <div class="sidebar-footer"><span class="pulse"></span> JustPlay Preview <span class="version-tag">0.2.3</span></div>
     </aside>
 
     <main class="main-area">
@@ -174,24 +174,25 @@
         <section id="page-docs" class="page">
           <div class="page-heading-row"><div><div class="eyebrow">JUSTPLAY GUIDE</div><h1>Start simple. <em>Play more.</em></h1><p class="page-subtitle">Everything you need to set up your game library and keep it tidy.</p></div></div>
           <section class="panel release-notes-panel">
-            <div class="release-notes-heading"><div><div class="eyebrow">RELEASE NOTES · OCTOBER 2026</div><h2>What’s new in <em>v0.2.2</em></h2></div><span class="release-latest-tag">LATEST</span></div>
-            <p class="release-intro">This release adds compatible Java runtime detection, official Minecraft profile skin sync, and encrypted saved-session launch for already-installed profiles after a successful Microsoft sign-in.</p>
+            <div class="release-notes-heading"><div><div class="eyebrow">RELEASE NOTES · OCTOBER 2026</div><h2>What’s new in <em>v0.2.3</em></h2></div><span class="release-latest-tag">LATEST</span></div>
+            <p class="release-intro">This release adds Fabric Loader support for compatible Minecraft versions. Java runtime detection, official skin sync, and encrypted saved-session launch remain available.</p>
             <div class="release-note-grid">
+              <article><span>✣</span><div><strong>Fabric Loader</strong><p>Browse compatible Fabric builds, install the official loader, and launch the resulting profile from JustPlay.</p></div></article>
               <article><span>⌘</span><div><strong>Java auto-detection</strong><p>Finds installed runtimes and chooses a compatible Java major version for the selected Minecraft version.</p></div></article>
               <article><span>◉</span><div><strong>Official skin sync</strong><p>Previews the active skin for the authenticated Minecraft Java profile through Minecraft’s profile service.</p></div></article>
               <article><span>▣</span><div><strong>Saved-session play</strong><p>Offers a short-lived, OS-encrypted previously authenticated session for already-installed profiles without inventing tokens or bypassing ownership checks.</p></div></article>
             </div>
-            <p class="release-migration-note"><strong>Upgrading?</strong> v0.2.1 users can install v0.2.2 through the in-app updater. v0.1.1 users must install v0.2.0 once manually first.</p>
+            <p class="release-migration-note"><strong>Upgrading?</strong> v0.2.1 users can install v0.2.3 through the in-app updater. v0.1.1 users must install v0.2.0 once manually first.</p>
           </section>
           <div class="docs-grid">
             <article class="panel doc-card"><div class="doc-number">01</div><h3>Set up your folders</h3><p>On first launch, choose a player display name and press Set up JustPlay. The app checks local drives for free space and creates a JustPlay folder on the drive with the most available space it can write to.</p><button class="text-button" data-page="settings">View storage settings ↗</button></article>
             <article class="panel doc-card"><div class="doc-number">02</div><h3>Choose the right account</h3><p>Sign into your local JustPlay profile at startup or continue as a guest. To start official Minecraft Java Edition, use Microsoft sign-in with an account that has Java Edition access.</p><button class="text-button" id="docsSignInBtn">Sign in with Microsoft ↗</button></article>
             <article class="panel doc-card"><div class="doc-number">03</div><h3>Install a version</h3><p>Choose an official Release or Snapshot. Press Install &amp; play. The first run downloads files from official sources; later launches use the installed profile. JustPlay auto-detects Java runtimes and picks a compatible major version.</p><button class="text-button" data-page="versions">Browse versions ↗</button></article>
-            <article class="panel doc-card"><div class="doc-number">04</div><h3>Forge &amp; OptiFine</h3><p>Forge builds come from Forge's Maven metadata and use their official installer. OptiFine downloads are handled on the official OptiFine page; follow its installer steps into the matching Game Versions profile, then select it under Installed.</p><div class="doc-link-row"><button class="text-button" id="docsForgeBtn">Forge ↗</button><button class="text-button" id="docsOptifineBtn">OptiFine ↗</button></div></article>
+            <article class="panel doc-card"><div class="doc-number">04</div><h3>Forge, Fabric &amp; OptiFine</h3><p>Forge and Fabric use their official installers. Select a Fabric build in the version library and press Install Fabric &amp; play. OptiFine still uses its official website and separate installer flow; follow its instructions and select the result under Installed.</p><div class="doc-link-row"><button class="text-button" id="docsForgeBtn">Forge ↗</button><button class="text-button" id="docsOptifineBtn">OptiFine ↗</button></div></article>
             <article class="panel doc-card"><div class="doc-number">05</div><h3>Add mods</h3><p>Use a mod loader profile, then add JAR files in Mods. JustPlay copies each file to the shared staging folder and the selected profile's mods directory. Only install mods you trust and that match your loader and game version.</p><button class="text-button" data-page="mods">Open Mods ↗</button></article>
             <article class="panel doc-card"><div class="doc-number">06</div><h3>Add resource packs</h3><p>Add Java resource packs as ZIP files. Open Minecraft and enable them under Options → Resource Packs. Bedrock-only .mcpack files and shader packs are not automatically installed by this initial build.</p><button class="text-button" data-page="resourcepacks">Open Resource Packs ↗</button></article>
           </div>
-          <div class="notice-card"><span>!</span><div><strong>Troubleshooting</strong><p>For Java errors, use Settings → Java Runtime → Auto-detect. For skin sync, sign in with Microsoft first. Saved-session play uses only a recent encrypted session from a previous successful Minecraft authentication and requires local game files to be complete. For sign-in errors, check your Microsoft account, game ownership and network. For Forge problems, check the launch log and use an installer build matching your Minecraft version.</p><button class="text-button" id="docsJavaBtn">Find Java downloads ↗</button></div></div>
+          <div class="notice-card"><span>!</span><div><strong>Troubleshooting</strong><p>For Java errors, use Settings → Java Runtime → Auto-detect. For skin sync, sign in with Microsoft first. Saved-session play uses only a recent encrypted session from a previous successful Minecraft authentication and requires local game files to be complete. For sign-in errors, check your Microsoft account, game ownership and network. For Forge or Fabric problems, check the launch log and confirm your loader, Minecraft version, Java runtime, and mods are compatible.</p><button class="text-button" id="docsJavaBtn">Find Java downloads ↗</button></div></div>
         </section>
 
         <footer class="app-footer"><span>JUSTPLAY <span class="footer-separator">/</span> JAVA EDITION LAUNCHER</span><span>Unofficial community project. Not affiliated with Mojang or Microsoft.</span></footer>
