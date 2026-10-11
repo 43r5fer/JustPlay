@@ -1,41 +1,40 @@
 # Flock release checklist
 
-## v1.0.3 — custom Flock login and remembered sessions
-- [x] Replaced Supabase Auth UI/API login with Flock-owned username/password sign-in and registration.
-- [x] Added per-account salted PBKDF2-SHA256 hashes; raw passwords are never stored.
-- [x] Added revocable, hashed session tokens with Remember me (30 days) and temporary sessions (1 day).
-- [x] Added registration/sign-in/password-change rate limiting.
-- [x] Deployed the flock-auth Edge Function and verified it is active.
-- [x] Switched Flock database RLS identity checks to validate the x-flock-session header.
-- [x] Added password-change controls to profile settings.
-- [x] Removed Supabase Auth calls from the renderer.
-- [x] Windows setup and Android APK builds passed in GitHub Actions.
-- [x] Flock v1.0.3 release published with Flock-Setup.exe and Flock.apk.
-- [x] Windows update manifest generated; desktop update prompts are enabled.
-- [x] Android Google Play in-app update bridge is included.
-- [x] Android compile/target SDK set to API 36.
-- [ ] Configure the four Android upload-signing secrets to produce Flock-Play-Store.aab.
-- [ ] Upload the signed AAB to Play Console internal testing, complete listing/Data safety/privacy forms, and submit for review.
-- [ ] Install v1.0.3 APK on a real Android device and test camera/microphone, custom login, remember-me, media and update flows.
-- [ ] Test two separate user accounts and verify cross-device message sync, friend requests, groups, edit/delete and read receipts.
-- [ ] Add a self-service password recovery workflow (forgotten-password recovery is not implemented yet).
+## Custom Flock login
+- [x] Flock-owned username/password registration and sign-in (no Supabase Auth login).
+- [x] Server-side PBKDF2-SHA256 hashes with per-user salts; raw passwords are never stored.
+- [x] Revocable hashed sessions with Remember me (30 days) and temporary sessions (1 day).
+- [x] Rate limiting for registration, login and password changes.
+- [x] Deployed the Flock auth Edge Function and repaired friend-code generation using integer parsing.
+- [x] Switched Flock database RLS identity checks to validated x-flock-session headers.
+- [x] Added a change-password control in profile settings.
 
-## Android Play Store signing secrets
-Add these as repository Actions secrets at:
+## Direct distribution
+- [x] Windows setup and Android APK builds succeeded in CI.
+- [x] Published v1.0.3 with Flock-Setup.exe and Flock.apk.
+- [x] Windows latest.yml manifest and automatic update prompts included.
+- [x] Android release-version check and direct-download update path included.
+- [x] Android build workflow now focuses on APK distribution only; no Play Store AAB is produced.
+- [ ] Add the generated stable Android signing key as protected repository Actions secrets.
+- [ ] Build the first release-signed APK. The existing v1.0.3 APK is debug-signed and needs one uninstall/reinstall transition.
+- [ ] Test login/remember-me and chat/media features on a real Windows PC and Android device.
+- [ ] Test two accounts, message sync, groups, edit/delete and read receipts.
+
+## Configure stable Android APK signing
+Open:
 https://github.com/43r5fer/JustPlay/settings/secrets/actions
 
+Add four secrets from the private Flock signing kit:
 - ANDROID_KEYSTORE_BASE64
 - ANDROID_KEYSTORE_PASSWORD
-- ANDROID_KEY_ALIAS
+- ANDROID_KEY_ALIAS (value: flock-upload)
 - ANDROID_KEY_PASSWORD
 
-The current v1.0.3 Android artifact is a debug-signed testing APK because these secrets were not configured. The GitHub release does not include a Play Store AAB yet. Do not submit the debug APK to Play Console.
+Keep the JKS file and passwords private. The release workflow builds a normal release-signed APK when these values exist. If they are absent, it falls back to a functional debug-signed APK, but future updates might not install in-place.
 
-## Release assets
-- Windows setup: https://github.com/43r5fer/JustPlay/releases/download/flock-v1.0.3/Flock-Setup.exe
-- Android testing APK: https://github.com/43r5fer/JustPlay/releases/download/flock-v1.0.3/Flock.apk
+## Downloads
+- Windows: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
+- Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
 - Release page: https://github.com/43r5fer/JustPlay/releases/tag/flock-v1.0.3
-- Source ZIP: https://github.com/43r5fer/JustPlay/archive/refs/tags/flock-v1.0.3.zip
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Website: https://43r5fer.github.io/JustPlay/
-- Workflow run: https://github.com/43r5fer/JustPlay/actions/runs/38076318017
