@@ -47,7 +47,7 @@ jobs:
           retention-days: 30
 
   android:
-    name: Build Android APK and Play Store bundle
+    name: Build Android APK for direct distribution
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
@@ -115,7 +115,7 @@ jobs:
       - name: Configure version, API 36 and Google Play update support
         run: node scripts/patch-android-release.mjs
 
-      - name: Build Android APK and optional signed Play Store bundle
+      - name: Build direct-download Android APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -124,25 +124,22 @@ jobs:
         run: |
           mkdir -p dist
           cd android
-          ./gradlew --no-daemon assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../dist/Flock-debug.apk
           if [ "$FLOCK_RELEASE_SIGNING_READY" = "true" ]; then
-            ./gradlew --no-daemon bundleRelease assembleRelease
+            ./gradlew --no-daemon assembleRelease
             cp app/build/outputs/apk/release/app-release.apk ../dist/Flock.apk
-            cp app/build/outputs/bundle/release/app-release.aab ../dist/Flock-Play-Store.aab
+            echo "Built a release-signed sideload APK for direct download."
           else
+            ./gradlew --no-daemon assembleDebug
             cp app/build/outputs/apk/debug/app-debug.apk ../dist/Flock.apk
+            echo "::warning::No stable APK signing key configured; Flock.apk is functional but future in-place APK updates may require reinstalling."
           fi
 
-      - name: Upload Android release artifacts
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: Flock-Android-Release
-          path: |
-            dist/Flock.apk
-            dist/Flock-debug.apk
-            dist/Flock-Play-Store.aab
-          if-no-files-found: warn
+          path: dist/Flock.apk
+          if-no-files-found: error
           retention-days: 30
 
   release:
@@ -153,7 +150,7 @@ jobs:
       - android
     runs-on: ubuntu-latest
     steps:
-      - name: Download Windows, APK and optional Play Store bundle
+      - name: Download Windows and direct-download APK
         uses: actions/download-artifact@v4
         with:
           pattern: Flock-*-Release
