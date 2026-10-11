@@ -1,6 +1,6 @@
 'use strict';
 
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
@@ -21,19 +21,6 @@ if (major > 2000 || minor > 999 || patch > 999) throw new Error('Version exceeds
 const versionCode = major * 1000000 + minor * 1000 + patch;
 const signingReady = process.env.FLOCK_RELEASE_SIGNING_READY === 'true';
 
-async function findNamedFile(dir, name) {
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isFile() && entry.name === name) return full;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === 'build' || entry.name === '.gradle') continue;
-    const found = await findNamedFile(path.join(dir, entry.name), name).catch(() => null);
-    if (found) return found;
-  }
-  return null;
-}
 
 const appGradlePath = path.join(androidRoot, 'app', 'build.gradle');
 let appGradle = await readFile(appGradlePath, 'utf8');
@@ -73,128 +60,8 @@ variables = variables.replace(/targetSdkVersion\s*=\s*\d+/, 'targetSdkVersion = 
 if (/compileSdkVersion\s*=\s*\d+/.test(variables)) variables = variables.replace(/compileSdkVersion\s*=\s*\d+/, 'compileSdkVersion = 36');
 await writeFile(varsPath, variables, 'utf8');
 
-const mainActivityPath = await findNamedFile(path.join(androidRoot, 'app', 'src', 'main', 'java'), 'MainActivity.java');
-if (!mainActivityPath) throw new Error('Could not find generated MainActivity.java.');
-const mainExisting = await readFile(mainActivityPath, 'utf8');
-const packageMatch = mainExisting.match(/^\s*package\s+([A-Za-z0-9_.]+)\s*;/m);
-const javaPackage = packageMatch ? packageMatch[1] : appId;
-const mainJava = 'package ' + javaPackage + ';\n\n' +
-'import android.os.Bundle;\n' +
-'import androidx.activity.result.ActivityResultLauncher;\n' +
-'import androidx.activity.result.IntentSenderRequest;\n' +
-'import androidx.activity.result.contract.ActivityResultContracts;\n' +
-'import com.getcapacitor.BridgeActivity;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateInfo;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateManager;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateManagerFactory;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateOptions;\n' +
-'import com.google.android.play.core.install.model.AppUpdateType;\n\n' +
-'public class MainActivity extends BridgeActivity {\n' +
-'    private ActivityResultLauncher<IntentSenderRequest> flockUpdateLauncher;\n' +
-'    private AppUpdateManager flockUpdateManager;\n\n' +
-'    @Override\n' +
-'    public void onCreate(Bundle savedInstanceState) {\n' +
-'        registerPlugin(FlockUpdatesPlugin.class);\n' +
-'        super.onCreate(savedInstanceState);\n' +
-'        flockUpdateManager = AppUpdateManagerFactory.create(this);\n' +
-'        flockUpdateLauncher = registerForActivityResult(\n' +
-'            new ActivityResultContracts.StartIntentSenderForResult(),\n' +
-'            result -> { /* The web UI re-checks update/install status when it resumes. */ }\n' +
-'        );\n' +
-'    }\n\n' +
-'    public void startFlockPlayUpdate(AppUpdateInfo info, int updateType) {\n' +
-'        if (flockUpdateLauncher == null || flockUpdateManager == null) {\n' +
-'            throw new IllegalStateException("The Flock update flow is not ready yet.");\n' +
-'        }\n' +
-'        AppUpdateOptions options = AppUpdateOptions.newBuilder(updateType).build();\n' +
-'        flockUpdateManager.startUpdateFlowForResult(info, flockUpdateLauncher, options);\n' +
-'    }\n\n' +
-'    public AppUpdateManager getFlockUpdateManager() {\n' +
-'        if (flockUpdateManager == null) {\n' +
-'            flockUpdateManager = AppUpdateManagerFactory.create(this);\n' +
-'        }\n' +
-'        return flockUpdateManager;\n' +
-'    }\n' +
-'}\n';
-await writeFile(mainActivityPath, mainJava, 'utf8');
-
-const pluginPath = path.join(path.dirname(mainActivityPath), 'FlockUpdatesPlugin.java');
-const pluginJava = 'package ' + javaPackage + ';\n\n' +
-'import android.os.Build;\n' +
-'import com.getcapacitor.JSObject;\n' +
-'import com.getcapacitor.Plugin;\n' +
-'import com.getcapacitor.PluginCall;\n' +
-'import com.getcapacitor.PluginMethod;\n' +
-'import com.getcapacitor.annotation.CapacitorPlugin;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateInfo;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateManager;\n' +
-'import com.google.android.play.core.appupdate.AppUpdateOptions;\n' +
-'import com.google.android.play.core.install.model.AppUpdateType;\n' +
-'import com.google.android.play.core.install.model.InstallStatus;\n' +
-'import com.google.android.play.core.install.model.UpdateAvailability;\n\n' +
-'@CapacitorPlugin(name = "FlockUpdates")\n' +
-'public class FlockUpdatesPlugin extends Plugin {\n' +
-'    private AppUpdateManager manager() {\n' +
-'        return ((MainActivity) getActivity()).getFlockUpdateManager();\n' +
-'    }\n\n' +
-'    @PluginMethod\n' +
-'    public void getInfo(PluginCall call) {\n' +
-'        manager().getAppUpdateInfo()\n' +
-'            .addOnSuccessListener(info -> call.resolve(toResult(info)))\n' +
-'            .addOnFailureListener(error -> call.reject("Google Play could not check for updates.", error));\n' +
-'    }\n\n' +
-'    @PluginMethod\n' +
-'    public void startUpdate(PluginCall call) {\n' +
-'        String mode = call.getString("mode", "flexible");\n' +
-'        int updateType = "immediate".equalsIgnoreCase(mode) ? AppUpdateType.IMMEDIATE : AppUpdateType.FLEXIBLE;\n' +
-'        AppUpdateOptions options = AppUpdateOptions.newBuilder(updateType).build();\n' +
-'        manager().getAppUpdateInfo().addOnSuccessListener(info -> {\n' +
-'            int availability = info.updateAvailability();\n' +
-'            if (availability != UpdateAvailability.UPDATE_AVAILABLE && availability != UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {\n' +
-'                call.reject("Google Play does not currently report an available update.");\n' +
-'                return;\n' +
-'            }\n' +
-'            if (!info.isUpdateTypeAllowed(options)) {\n' +
-'                call.reject("Google Play does not allow this update flow for this version.");\n' +
-'                return;\n' +
-'            }\n' +
-'            try {\n' +
-'                ((MainActivity) getActivity()).startFlockPlayUpdate(info, updateType);\n' +
-'                call.resolve(toResult(info));\n' +
-'            } catch (Exception error) {\n' +
-'                call.reject("Could not start the Google Play update.", error);\n' +
-'            }\n' +
-'        }).addOnFailureListener(error -> call.reject("Google Play could not start the update.", error));\n' +
-'    }\n\n' +
-'    @PluginMethod\n' +
-'    public void completeUpdate(PluginCall call) {\n' +
-'        manager().completeUpdate()\n' +
-'            .addOnSuccessListener(unused -> call.resolve())\n' +
-'            .addOnFailureListener(error -> call.reject("Could not complete the Google Play update.", error));\n' +
-'    }\n\n' +
-'    private JSObject toResult(AppUpdateInfo info) {\n' +
-'        JSObject result = new JSObject();\n' +
-'        result.put("updateAvailability", info.updateAvailability());\n' +
-'        result.put("availableVersionCode", info.availableVersionCode());\n' +
-'        result.put("installStatus", info.installStatus());\n' +
-'        result.put("flexibleAllowed", info.isUpdateTypeAllowed(AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()));\n' +
-'        result.put("immediateAllowed", info.isUpdateTypeAllowed(AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()));\n' +
-'        result.put("updateAvailable", info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE);\n' +
-'        result.put("downloaded", info.installStatus() == InstallStatus.DOWNLOADED);\n' +
-'        String installer = "";\n' +
-'        try {\n' +
-'            if (Build.VERSION.SDK_INT >= 30) installer = getContext().getPackageManager().getInstallSourceInfo(getContext().getPackageName()).getInstallingPackageName();\n' +
-'            else installer = getContext().getPackageManager().getInstallerPackageName(getContext().getPackageName());\n' +
-'        } catch (Exception ignored) { /* Installer source may be unavailable. */ }\n' +
-'        result.put("installerPackageName", installer == null ? "" : installer);\n' +
-'        result.put("playStoreInstall", "com.android.vending".equals(installer));\n' +
-'        return result;\n' +
-'    }\n' +
-'}\n';
-await writeFile(pluginPath, pluginJava, 'utf8');
-
 const runtimePath = path.join(androidRoot, 'app', 'src', 'main', 'assets', 'public', 'flock-runtime.js');
 const runtime = "'use strict';\nwindow.FLOCK_RUNTIME = Object.freeze({ version: " + JSON.stringify(version) +
   ", releaseSigned: " + (signingReady ? 'true' : 'false') + " });\n";
 await writeFile(runtimePath, runtime, 'utf8');
-console.log('Configured Flock Android version ' + version + ' (versionCode ' + versionCode + '), target API 36, Google Play in-app updates, ' + (signingReady ? 'release signing enabled.' : 'release signing not configured; Play Store AAB skipped.'));
+console.log('Configured Flock Android version ' + version + ' (versionCode ' + versionCode + '), target API 36, direct APK distribution, ' + (signingReady ? 'release signing enabled.' : 'release signing not configured; a debug-signed APK will be used.'));
