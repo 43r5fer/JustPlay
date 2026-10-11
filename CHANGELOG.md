@@ -16,7 +16,7 @@
 - Flock isn't formally audited and doesn't claim end-to-end encryption.
 - Self-service forgotten-password recovery is not enabled yet; signed-in users can change their password from profile settings.
 
-## v1.0.2 — Play Store preparation and update prompts
+## v1.0.2 — Android update and signing groundwork
 
 - Added desktop update prompts, native Google Play in-app update bridge, conditional Android signing configuration and target API 36.
 
