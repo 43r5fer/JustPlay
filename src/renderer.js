@@ -834,23 +834,23 @@ async function sendMessage(body, kind, media, youtubeId, options) {
     media_type: media ? media.type : null,
     media_size: media ? media.size : null,
     youtube_id: youtubeId || null,
-    reply_to: pendingReply ? pendingReply.id : null
+    reply_to: activeConversation && activeConversation.id === targetConversationId && pendingReply ? pendingReply.id : null
   };
   const { data, error } = await db.from('flock_messages').insert(row).select('id').single();
   if (error) {
     if (media && media.path) await removeMedia(media.path);
     throw error;
   }
-  $('messageInput').value = '';
-  $('messageInput').style.height = 'auto';
-  $('sendMessageBtn').disabled = true;
-  pendingReply = null;
-  $('replyBar').hidden = true;
-  if (activeConversation && activeConversation.id === targetConversationId) await refreshMessages(targetConversationId, true);
-  await refreshConversations();
-  if (presenceChannel) {
-    presenceChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, typing: false } }).catch(() => {});
+  if (activeConversation && activeConversation.id === targetConversationId) {
+    $('messageInput').value = '';
+    $('messageInput').style.height = 'auto';
+    $('sendMessageBtn').disabled = true;
+    pendingReply = null;
+    $('replyBar').hidden = true;
+    if (presenceChannel) presenceChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, typing: false } }).catch(() => {});
+    await refreshMessages(targetConversationId, true);
   }
+  await refreshConversations();
   return data;
 }
 async function handleSendMessage(event) {
