@@ -112,7 +112,7 @@ jobs:
             echo "::warning::Android signing secrets are missing. A functional debug-signed APK will be built; future in-place updates may require a reinstall."
           fi
 
-      - name: Configure version, API 36 and Google Play update support
+      - name: Configure Android version, API 36 and direct APK update support
         run: node scripts/patch-android-release.mjs
 
       - name: Build direct-download Android APK
