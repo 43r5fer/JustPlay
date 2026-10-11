@@ -1,7 +1,7 @@
 {
-  "name": "flock-messenger",
-  "version": "1.0.3",
-  "description": "Flock — cross-platform messaging with custom sessions and automatic updates",
+  "name": "clines-messenger",
+  "version": "1.0.4",
+  "description": "Clines — cross-platform messaging with custom sessions and automatic updates",
   "main": "electron/main.cjs",
   "author": "Flock contributors",
   "license": "MIT",
@@ -24,7 +24,7 @@
   },
   "build": {
     "appId": "com.flock.messaging",
-    "productName": "Flock",
+    "productName": "Clines",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -40,7 +40,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Flock-Setup.${ext}",
+      "artifactName": "Clines-Setup.${ext}",
       "icon": "assets/justplay.ico",
       "verifyUpdateCodeSignature": false
     },
@@ -49,7 +49,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Flock"
+      "shortcutName": "Clines"
     },
     "publish": [
       {
@@ -59,6 +59,6 @@
         "releaseType": "release"
       }
     ],
-    "artifactName": "Flock-Setup.${ext}"
+    "artifactName": "Clines-Setup.${ext}"
   }
 }
