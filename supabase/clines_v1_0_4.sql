@@ -149,7 +149,7 @@ create policy flock_call_signals_member_insert on public.flock_call_signals for 
       select 1 from public.flock_conversations c
       join public.flock_conversation_members sender on sender.conversation_id = c.id
       join public.flock_conversation_members recipient on recipient.conversation_id = c.id
-      where c.id = conversation_id and c.kind = 'direct'
+      where c.id = flock_call_signals.conversation_id and c.kind = 'direct'
         and sender.user_id = private.flock_session_user_id()
         and recipient.user_id = flock_call_signals.recipient_id
     )
