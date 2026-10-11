@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
       if (existing) return response(409, { error: "That username is already taken." });
       let profile: Record<string, unknown> | null = null;
       for (let attempt = 0; attempt < 6; attempt++) {
-        const digits = Number(toHex(randomBytes(8)).slice(0, 12), 16) % 10_000_000_000;
+        const digits = Number.parseInt(toHex(randomBytes(8)).slice(0, 12), 16) % 10_000_000_000;
         const friendCode = String(digits).padStart(10, "0");
         const { data, error } = await admin.from("flock_profiles")
           .insert({ username, display_name: displayName, friend_code: friendCode, bio: "" })
