@@ -85,7 +85,7 @@ For reliable in-place APK updates, sign every APK with the same private release 
 - ANDROID_KEY_ALIAS — flock-upload.
 - ANDROID_KEY_PASSWORD — the value in the matching key-password text file.
 
-The release workflow then builds only the signed Flock.apk for direct distribution; it no longer builds a Play Store AAB. If those secrets are missing, the workflow still creates a debug-signed APK that runs, but future in-place updates may require uninstalling the old APK first. The current v1.0.3 APK was built before a persistent release key was configured; migrating from it to the first release-signed APK requires a one-time uninstall/reinstall. Your cloud account and messages are stored remotely, so sign back in after reinstalling.
+The release workflow builds only Flock.apk for direct distribution; no app-store bundle is produced. If those secrets are missing, the workflow still creates a debug-signed APK that runs, but future in-place updates may require uninstalling the old APK first. The current v1.0.3 APK was built before a persistent release key was configured; migrating from it to the first release-signed APK requires a one-time uninstall/reinstall. Your cloud account and messages are stored remotely, so sign back in after reinstalling.
 
 The GitHub project cannot use your keystore until you put these values into Actions secrets. Never share the keystore/passwords publicly.
  
