@@ -1,5 +1,12 @@
 # Flock release notes
 
+## Live backend hotfix — October 11, 2026
+
+- Fixed friend-code generation in the Flock registration service. The previous implementation used `Number(hex, 16)`, which JavaScript does not support, producing `NaN` instead of a valid 10-digit code.
+- Deployed the corrected `Number.parseInt(hex, 16)` implementation to the live `flock-auth` Edge Function.
+- Passed a live smoke test for registration, 10-digit friend code validation, username/password login, remembered-session restore, logout and session revocation. The temporary test account was deleted after verification.
+
+
 ## v1.0.3 — Custom Flock account system
 
 - Replaced Supabase Auth UI/API sign-in calls with Flock-owned username/password registration, login, logout and session validation.
