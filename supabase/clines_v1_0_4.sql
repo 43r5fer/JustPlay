@@ -22,47 +22,6 @@ create policy flock_user_blocks_own_insert on public.flock_user_blocks for inser
 create policy flock_user_blocks_own_delete on public.flock_user_blocks for delete to anon, authenticated
   using (blocker_id = private.flock_session_user_id());
 
-create table if not exists public.flock_call_signals (
-  id uuid primary key default gen_random_uuid(),
-  conversation_id uuid not null references public.flock_conversations(id) on delete cascade,
-  sender_id uuid not null references public.flock_profiles(id) on delete cascade,
-  recipient_id uuid not null references public.flock_profiles(id) on delete cascade,
-  call_id text not null check (pg_catalog.char_length(call_id) between 1 and 100),
-  signal_type text not null check (signal_type in ('offer','answer','candidate','reject','end')),
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default pg_catalog.now(),
-  constraint flock_call_signals_no_self check (sender_id <> recipient_id)
-);
-create index if not exists flock_call_signals_recipient_created_idx
-  on public.flock_call_signals(recipient_id, created_at);
-alter table public.flock_call_signals enable row level security;
-revoke all on public.flock_call_signals from public, anon, authenticated;
-grant select, insert, delete on public.flock_call_signals to anon, authenticated;
-drop policy if exists flock_call_signals_participant_read on public.flock_call_signals;
-drop policy if exists flock_call_signals_member_insert on public.flock_call_signals;
-drop policy if exists flock_call_signals_participant_delete on public.flock_call_signals;
-create policy flock_call_signals_participant_read on public.flock_call_signals for select to anon, authenticated
-  using (
-    (sender_id = private.flock_session_user_id() or recipient_id = private.flock_session_user_id())
-    and not public.flock_conversation_is_blocked(conversation_id)
-  );
-create policy flock_call_signals_member_insert on public.flock_call_signals for insert to anon, authenticated
-  with check (
-    sender_id = private.flock_session_user_id()
-    and recipient_id <> private.flock_session_user_id()
-    and not public.flock_conversation_is_blocked(conversation_id)
-    and exists (
-      select 1 from public.flock_conversations c
-      join public.flock_conversation_members sender on sender.conversation_id = c.id
-      join public.flock_conversation_members recipient on recipient.conversation_id = c.id
-      where c.id = conversation_id and c.kind = 'direct'
-        and sender.user_id = private.flock_session_user_id()
-        and recipient.user_id = recipient_id
-    )
-  );
-create policy flock_call_signals_participant_delete on public.flock_call_signals for delete to anon, authenticated
-  using (sender_id = private.flock_session_user_id() or recipient_id = private.flock_session_user_id());
-
 create or replace function public.flock_is_user_blocked(p_user_id uuid)
 returns boolean
 language sql stable security definer set search_path = ''
@@ -155,6 +114,48 @@ begin
   limit 1;
 end;
 $$;
+
+
+create table if not exists public.flock_call_signals (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.flock_conversations(id) on delete cascade,
+  sender_id uuid not null references public.flock_profiles(id) on delete cascade,
+  recipient_id uuid not null references public.flock_profiles(id) on delete cascade,
+  call_id text not null check (pg_catalog.char_length(call_id) between 1 and 100),
+  signal_type text not null check (signal_type in ('offer','answer','candidate','reject','end')),
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default pg_catalog.now(),
+  constraint flock_call_signals_no_self check (sender_id <> recipient_id)
+);
+create index if not exists flock_call_signals_recipient_created_idx
+  on public.flock_call_signals(recipient_id, created_at);
+alter table public.flock_call_signals enable row level security;
+revoke all on public.flock_call_signals from public, anon, authenticated;
+grant select, insert, delete on public.flock_call_signals to anon, authenticated;
+drop policy if exists flock_call_signals_participant_read on public.flock_call_signals;
+drop policy if exists flock_call_signals_member_insert on public.flock_call_signals;
+drop policy if exists flock_call_signals_participant_delete on public.flock_call_signals;
+create policy flock_call_signals_participant_read on public.flock_call_signals for select to anon, authenticated
+  using (
+    (sender_id = private.flock_session_user_id() or recipient_id = private.flock_session_user_id())
+    and not public.flock_conversation_is_blocked(conversation_id)
+  );
+create policy flock_call_signals_member_insert on public.flock_call_signals for insert to anon, authenticated
+  with check (
+    sender_id = private.flock_session_user_id()
+    and recipient_id <> private.flock_session_user_id()
+    and not public.flock_conversation_is_blocked(conversation_id)
+    and exists (
+      select 1 from public.flock_conversations c
+      join public.flock_conversation_members sender on sender.conversation_id = c.id
+      join public.flock_conversation_members recipient on recipient.conversation_id = c.id
+      where c.id = conversation_id and c.kind = 'direct'
+        and sender.user_id = private.flock_session_user_id()
+        and recipient.user_id = flock_call_signals.recipient_id
+    )
+  );
+create policy flock_call_signals_participant_delete on public.flock_call_signals for delete to anon, authenticated
+  using (sender_id = private.flock_session_user_id() or recipient_id = private.flock_session_user_id());
 
 create or replace function public.flock_block_user(p_user_id uuid)
 returns boolean language plpgsql security definer set search_path = ''
