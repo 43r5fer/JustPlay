@@ -1189,8 +1189,9 @@ async function showGroupDetails() {
       const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
       const availableRoles = actorRole === 'owner' ? ['admin','co_admin','member'] : ['co_admin','member'];
       const roleOptions = availableRoles.map(role => '<option value="' + role + '" ' + (m.role === role ? 'selected' : '') + '>' + (role === 'co_admin' ? 'Co-admin' : role === 'admin' ? 'Admin' : 'Member') + '</option>').join('');
+      const canChangeThisRole = actorRole === 'owner' || (actorRole === 'admin' && ['co_admin','member'].includes(m.role));
       const controls = m.role === 'owner' ? '<span class="role-pill owner">Owner</span>' :
-        (canAdmin ? '<select class="form-select group-role-select" data-member-role="' + m.user_id + '">' + roleOptions + '</select>' :
+        (canChangeThisRole ? '<select class="form-select group-role-select" data-member-role="' + m.user_id + '">' + roleOptions + '</select>' :
         '<span class="role-pill">' + escapeHtml(m.role.replace('_',' ')) + '</span>');
       const remove = canRemoveGroupMember(actorRole, m.role, m.user_id) ? '<button class="mini-action remove-group-member" data-remove-group-member="' + m.user_id + '" title="Remove member" aria-label="Remove member">×</button>' : '';
       return '<div class="modal-member-row"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="modal-member-copy"><strong>' + escapeHtml(p.display_name) + (m.user_id === user.id ? ' (you)' : '') + '</strong><small>@' + escapeHtml(p.username) + '</small></span>' + controls + remove + '</div>';
