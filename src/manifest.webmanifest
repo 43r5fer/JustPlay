@@ -19,7 +19,7 @@
   ],
   "icons": [
     {
-      "src": "./Clines-icon.svg",
+      "src": "./flock-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
