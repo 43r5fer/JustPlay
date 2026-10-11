@@ -105,7 +105,7 @@ The GitHub project cannot use your keystore until you put these values into Acti
 - supabase/functions/flock-auth/index.ts — password hashing, login, registration and sessions
 - supabase/setup.sql, supabase/custom_auth.sql — schema and session-based RLS
 - electron/main.cjs, electron/preload.cjs — desktop wrapper and updater
-- scripts/patch-android-release.mjs — Play update bridge, API level and signing configuration
+- scripts/patch-android-release.mjs — Android API level, versioning and direct APK signing
 - .github/workflows/build-flock.yml — Windows/Android CI and release artifacts
 
 Flock is an independent community messenger.
