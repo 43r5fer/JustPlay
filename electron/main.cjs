@@ -21,7 +21,7 @@ function configureUpdater() {
   autoUpdater.on('update-available', info => publishUpdateState({
     status: 'available',
     version: String(info.version || ''),
-    message: 'Flock ' + String(info.version || '') + ' is available.'
+    message: 'Clines ' + String(info.version || '') + ' is available.'
   }));
   autoUpdater.on('update-not-available', () => publishUpdateState({ status: 'not-available' }));
   autoUpdater.on('download-progress', info => publishUpdateState({
@@ -31,11 +31,11 @@ function configureUpdater() {
   autoUpdater.on('update-downloaded', info => publishUpdateState({
     status: 'downloaded',
     version: String(info.version || ''),
-    message: 'Flock is ready to restart and install the update.'
+    message: 'Clines is ready to restart and install the update.'
   }));
   autoUpdater.on('error', () => publishUpdateState({
     status: 'error',
-    message: 'Flock could not check for updates right now.'
+    message: 'Clines could not check for updates right now.'
   }));
   autoUpdater.checkForUpdates().catch(() => {});
 }
@@ -60,7 +60,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#111214',
     autoHideMenuBar: true,
-    title: 'Flock',
+    title: 'Clines',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -87,7 +87,7 @@ app.whenReady().then(() => {
   ipcMain.handle('flock:update-check', async () => {
     if (!app.isPackaged) return { status: 'unsupported', currentVersion: app.getVersion() };
     try { await autoUpdater.checkForUpdates(); }
-    catch { publishUpdateState({ status: 'error', message: 'Flock could not check for updates right now.' }); }
+    catch { publishUpdateState({ status: 'error', message: 'Clines could not check for updates right now.' }); }
     return updateState;
   });
   ipcMain.handle('flock:update-download', async () => {
@@ -96,7 +96,7 @@ app.whenReady().then(() => {
     return { ok: true };
   });
   ipcMain.handle('flock:update-install', async () => {
-    if (!app.isPackaged || updateState.status !== 'downloaded') throw new Error('Download a Flock update before installing it.');
+    if (!app.isPackaged || updateState.status !== 'downloaded') throw new Error('Download a Clines update before installing it.');
     autoUpdater.quitAndInstall();
     return { ok: true };
   });
@@ -105,7 +105,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 }).catch(error => {
-  console.error('[Flock] Startup failed:', error && error.message ? error.message : 'unknown error');
+  console.error('[Clines] Startup failed:', error && error.message ? error.message : 'unknown error');
 });
 
 app.on('window-all-closed', () => {
