@@ -31,12 +31,6 @@ if (!/versionName\s+["'][^"']+["']/.test(appGradle)) throw new Error('Could not 
 appGradle = appGradle.replace(/versionCode\s+\d+/, 'versionCode ' + versionCode);
 appGradle = appGradle.replace(/versionName\s+["'][^"']+["']/, 'versionName "' + version + '"');
 
-if (!appGradle.includes('com.google.android.play:app-update:')) {
-  const match = appGradle.match(/(^[ \t]*dependencies[ \t]*\{)/m);
-  if (!match || match.index == null) throw new Error('Could not locate dependencies block in app/build.gradle.');
-  const at = match.index + match[0].length;
-  appGradle = appGradle.slice(0, at) + "\n    implementation 'com.google.android.play:app-update:2.1.0'" + appGradle.slice(at);
-}
 if (!appGradle.includes('signingConfigs {') || !appGradle.includes('signingConfigs.release')) {
   const buildTypesIndex = appGradle.indexOf('buildTypes {');
   if (buildTypesIndex < 0) throw new Error('Could not locate buildTypes block in app/build.gradle.');
