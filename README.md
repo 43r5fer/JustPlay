@@ -60,7 +60,7 @@ Output: dist/Flock-Setup.exe plus dist/latest.yml.
 
 When a newer Windows release is published, the installed app detects it, prompts Download update, then prompts Restart and update when ready.
 
-## Android and Google Play builds
+## Direct Android APK builds
 
 Requires Node.js 22+, JDK 21, and Android SDK API 36:
 
