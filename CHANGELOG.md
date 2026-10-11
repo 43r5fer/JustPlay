@@ -8,7 +8,7 @@
 - Added server rate limiting for registration/sign-in and password change with revocation of other sessions.
 - Updated PostgreSQL RLS identity checks to validate the x-flock-session hash; ordinary message/storage calls no longer rely on auth.uid().
 - Replaced database Realtime subscriptions with short-interval polling because anonymous Data API connections do not carry a Flock session through Supabase Realtime.
-- Kept the Windows automatic updater and Google Play Android update prompts/build scripts.
+- Kept the Windows automatic updater and switched Android update prompts to direct APK release downloads.
 
 ### Release notes
 
