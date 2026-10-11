@@ -20,7 +20,7 @@ function createFlockDatabase(sessionToken) {
 let flockSessionToken = getSavedFlockSession();
 let db = createFlockDatabase(flockSessionToken);
 async function flockAuth(action, payload, token) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Flock account service is not configured.');
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Clines account service is not configured.');
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
   const session = token === undefined ? flockSessionToken : token;
   if (session) headers['x-flock-session'] = session;
@@ -30,7 +30,7 @@ async function flockAuth(action, payload, token) {
   });
   let result = {};
   try { result = await response.json(); } catch {}
-  if (!response.ok) throw new Error(result.error || 'Flock could not complete that request. Please try again.');
+  if (!response.ok) throw new Error(result.error || 'Clines could not complete that request. Please try again.');
   return result;
 }
 function persistFlockSession(token, remember) {
@@ -43,7 +43,7 @@ function persistFlockSession(token, remember) {
       else sessionStorage.setItem('flock.session', flockSessionToken);
     }
   } catch {
-    if (flockSessionToken) throw new Error('This device cannot securely remember Flock here. Check browser storage settings and try again.');
+    if (flockSessionToken) throw new Error('This device cannot securely remember Clines here. Check browser storage settings and try again.');
   }
   if (realtimeChannel && db) db.removeChannel(realtimeChannel);
   if (presenceChannel && db) db.removeChannel(presenceChannel);
@@ -89,6 +89,11 @@ let signedUrlCache = new Map();
 let lastStatusLoad = 0;
 let suppressAuthCallback = false;
 let currentSidebarTab = 'chats';
+let activeCall = null;
+let pendingIncomingCall = null;
+let callSignalPoller = null;
+let callSignalPollBusy = false;
+const processedCallSignalIds = new Set();
 
 function escapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
@@ -96,7 +101,7 @@ function escapeHtml(value) {
   })[ch]);
 }
 function safeInitial(value) {
-  const text = String(value || 'F').trim();
+  const text = String(value || 'C').trim();
   return Array.from(text)[0] ? Array.from(text)[0].toUpperCase() : 'F';
 }
 function cleanFriendCode(value) {
@@ -130,7 +135,7 @@ function fmtDuration(seconds) {
   return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
 }
 function toast(title, message, isError) {
-  $('toastTitle').textContent = title || 'Flock';
+  $('toastTitle').textContent = title || 'Clines';
   $('toastMessage').textContent = message || '';
   $('toast').classList.toggle('is-error', Boolean(isError));
   $('toast').classList.add('visible');
@@ -144,10 +149,10 @@ function feedback(id, message, isError) {
   node.classList.toggle('is-error', Boolean(isError));
 }
 function requireDb() {
-  if (!db) throw new Error('Flock is not connected to Supabase. Check src/flock-config.js and reload the app.');
+  if (!db) throw new Error('Clines is not connected to Supabase. Check src/flock-config.js and reload the app.');
 }
 function assertUser() {
-  if (!user) throw new Error('Please sign in to Flock first.');
+  if (!user) throw new Error('Please sign in to Clines first.');
 }
 function resetModalHandlers() {
   modalPrimaryHandler = null;
@@ -155,7 +160,7 @@ function resetModalHandlers() {
 }
 function showModal(options) {
   const opt = options || {};
-  $('modalKicker').textContent = opt.kicker || 'FLOCK / YOUR SPACE';
+  $('modalKicker').textContent = opt.kicker || 'CLINES / YOUR SPACE';
   $('modalTitle').textContent = opt.title || 'Make it yours.';
   $('modalDescription').textContent = opt.description || '';
   $('modalBody').innerHTML = opt.body || '';
@@ -213,7 +218,7 @@ async function refreshProfile() {
   assertUser();
   const { data, error } = await db.from('flock_profiles').select('*').eq('id', user.id).maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error('Your Flock profile is still being created. Please refresh in a moment.');
+  if (!data) throw new Error('Your Clines profile is still being created. Please refresh in a moment.');
   profile = data;
   if (profile.avatar_path) await getSignedUrl(profile.avatar_path).catch(() => '');
   if (profile.background_path) await getSignedUrl(profile.background_path).catch(() => '');
@@ -233,7 +238,7 @@ function renderProfile() {
   img.src = url || '';
   $('myAvatarFallback').hidden = Boolean(url);
   $('connectionDot').classList.toggle('connected', Boolean(user));
-  $('connectionStatus').textContent = user ? 'Synced to Flock' : 'Not connected';
+  $('connectionStatus').textContent = user ? 'Synced to Clines' : 'Not connected';
   applyChatWallpaper();
 }
 async function getSignedUrl(path) {
@@ -279,7 +284,7 @@ async function uploadMedia(file, folder) {
 async function removeMedia(path) {
   if (!path || !user) return;
   const { error } = await db.storage.from(BUCKET).remove([path]);
-  if (error) console.warn('[Flock] Media cleanup did not finish.');
+  if (error) console.warn('[Clines] Media cleanup did not finish.');
   signedUrlCache.delete(path);
 }
 function renderProfileAvatar(path, fallback, className) {
@@ -302,25 +307,25 @@ function wireDesktopUpdates() {
       if (lastUpdatePrompt === 'available:' + version) return;
       lastUpdatePrompt = 'available:' + version;
       showModal({
-        kicker: 'FLOCK / UPDATE',
-        title: 'A fresh Flock is ready.',
+        kicker: 'CLINES / UPDATE',
+        title: 'A fresh Clines is ready.',
         description: 'Version ' + version + ' is available. Downloading it will not remove your account or cloud messages.',
-        body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>The update is downloaded directly from the official Flock GitHub release.</p></div>',
+        body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>The update is downloaded directly from the official Clines GitHub release.</p></div>',
         primary: 'Download update',
         onPrimary: async () => {
           await desktop.downloadUpdate();
           closeModal();
-          toast('Downloading Flock update', 'You can keep chatting while the update downloads.');
+          toast('Downloading Clines update', 'You can keep chatting while the update downloads.');
         }
       });
     } else if (state.status === 'downloaded') {
       if (lastUpdatePrompt === 'downloaded:' + state.version) return;
       lastUpdatePrompt = 'downloaded:' + state.version;
       showModal({
-        kicker: 'FLOCK / UPDATE',
+        kicker: 'CLINES / UPDATE',
         title: 'Ready when you are.',
-        description: 'Flock ' + String(state.version || '') + ' has finished downloading.',
-        body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Flock will close and restart to finish installing the update. Your cloud chats are saved in your account.</p></div>',
+        description: 'Clines ' + String(state.version || '') + ' has finished downloading.',
+        body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Clines will close and restart to finish installing the update. Your cloud chats are saved in your account.</p></div>',
         primary: 'Restart and update',
         onPrimary: async () => { await desktop.installUpdate(); }
       });
@@ -389,23 +394,23 @@ async function checkMobileUpdate(options) {
     const promptKey = 'github:' + latestVersion;
     if (lastMobileUpdateVersion === promptKey) return;
     lastMobileUpdateVersion = promptKey;
-    const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'Flock.apk') : null;
+    const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'Clines.apk') : null;
     const releaseSigned = Boolean(runtime.releaseSigned);
     const targetUrl = releaseSigned && apk && apk.browser_download_url
       ? apk.browser_download_url
       : (release.html_url || ('https://github.com/' + ownerRepo + '/releases/latest'));
     showModal({
-      kicker: 'FLOCK / UPDATE AVAILABLE',
-      title: 'A new Flock is ready.',
+      kicker: 'CLINES / UPDATE AVAILABLE',
+      title: 'A new Clines is ready.',
       description: releaseSigned
-        ? 'Flock ' + latestVersion + ' is ready to download. Android will ask you to approve the install.'
-        : 'Flock ' + latestVersion + ' is available. This APK was built without the permanent release-signing key, so open the release page and follow its installation instructions.',
+        ? 'Clines ' + latestVersion + ' is ready to download. Android will ask you to approve the install.'
+        : 'Clines ' + latestVersion + ' is available. This APK was built without the permanent release-signing key, so open the release page and follow its installation instructions.',
       body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Your account, friends and cloud conversations are stored online and will remain available after an update.</p></div>',
       primary: releaseSigned ? 'Download update' : 'View update',
       onPrimary: async () => {
         closeModal();
         openExternalFlockUrl(targetUrl);
-        toast(releaseSigned ? 'Downloading Flock update' : 'Opening Flock release',
+        toast(releaseSigned ? 'Downloading Clines update' : 'Opening Clines release',
           releaseSigned ? 'After the APK downloads, approve installation in Android.' : 'Follow the installation instructions on the release page.');
       }
     });
@@ -642,6 +647,7 @@ async function openConversation(conversation) {
   $('chatHeaderAvatar').hidden = !peerUrl;
   $('chatHeaderAvatarFallback').hidden = Boolean(peerUrl);
   $('addPeopleBtn').hidden = conversation.kind !== 'group' || !['owner','admin','co_admin'].includes(conversation.myRole);
+  $('voiceCallBtn').hidden = conversation.kind !== 'direct' || !conversation.peer;
   $('messageTimeline').innerHTML = '<div class="timeline-start">This is the beginning of something good.</div>';
   $('messageInput').value = '';
   $('sendMessageBtn').disabled = true;
@@ -709,7 +715,7 @@ function messagePayloadMarkup(m) {
   if (m.kind === 'text') body = '<div class="message-bubble">' + linkifyText(m.body || '') + '</div>';
   else if (m.kind === 'youtube') {
     const id = m.youtube_id || '';
-    body = '<div class="message-youtube"><button class="youtube-thumb" data-youtube-open="' + escapeHtml(id) + '" title="Play YouTube video"><img loading="lazy" src="https://img.youtube.com/vi/' + escapeHtml(id) + '/hqdefault.jpg" alt=""><span class="youtube-play">▶</span></button><div class="youtube-caption">YouTube video shared in Flock<small>Opens YouTube in a new tab</small></div></div>' + (m.body ? '<div class="message-bubble">' + linkifyText(m.body) + '</div>' : '');
+    body = '<div class="message-youtube"><button class="youtube-thumb" data-youtube-open="' + escapeHtml(id) + '" title="Play YouTube video"><img loading="lazy" src="https://img.youtube.com/vi/' + escapeHtml(id) + '/hqdefault.jpg" alt=""><span class="youtube-play">▶</span></button><div class="youtube-caption">YouTube video shared in Clines<small>Opens YouTube in a new tab</small></div></div>' + (m.body ? '<div class="message-bubble">' + linkifyText(m.body) + '</div>' : '');
   } else if (m.media_path) {
     const url = peekSignedUrl(m.media_path);
     const name = escapeHtml(m.media_name || 'Attachment');
@@ -733,7 +739,7 @@ function messagePayloadMarkup(m) {
   const seen = myMessage && (m.receipts || []).some(r => r.user_id !== user.id && Boolean(r.read_at));
   const ticks = myMessage && !m.deleted_at ? '<span class="message-ticks ' + (seen ? 'seen' : '') + '" title="' + (seen ? 'Seen' : 'Sent') + '">✓✓</span>' : '';
   const edited = m.edited_at ? '<span class="message-edited">edited</span>' : '';
-  const senderName = activeConversation && activeConversation.kind === 'group' && !myMessage ? '<span class="message-sender-name">' + escapeHtml(m.sender ? m.sender.display_name : 'Flock friend') + '</span>' : '';
+  const senderName = activeConversation && activeConversation.kind === 'group' && !myMessage ? '<span class="message-sender-name">' + escapeHtml(m.sender ? m.sender.display_name : 'Clines friend') + '</span>' : '';
   const avatarPath = !myMessage && m.sender ? m.sender.avatar_path : null;
   const avatarUrl = avatarPath ? peekSignedUrl(avatarPath) : '';
   const avatar = !myMessage && activeConversation && activeConversation.kind === 'group'
@@ -742,7 +748,7 @@ function messagePayloadMarkup(m) {
     (myMessage && !m.deleted_at ? '<button data-react-quick="' + m.id + '" title="React">☺</button>' : '') +
     '<button data-reply-message="' + m.id + '" title="Reply">↶</button>' +
     (canDelete ? '<button data-delete-message="' + m.id + '" title="Delete message">×</button>' : '') + '</div>';
-  const authorLabel = myMessage ? 'You' : (m.sender ? m.sender.display_name : 'Flock friend');
+  const authorLabel = myMessage ? 'You' : (m.sender ? m.sender.display_name : 'Clines friend');
   return '<div class="message-row ' + (myMessage ? 'mine' : 'theirs') + '" data-message-id="' + m.id + '">' + avatar +
     '<div class="message-stack">' + senderName + body + rx +
     '<div class="message-meta"><span>' + escapeHtml(timestamp) + '</span>' + edited + ticks + '</div>' + actions + '</div></div>';
@@ -788,7 +794,7 @@ function subscribeConversation(conversationId) {
       await refreshConversations({ quiet: true });
       if (activeConversation && activeConversation.id === conversationId) renderPresence();
     } catch (error) {
-      console.warn('[Flock] Conversation sync paused:', error && error.message ? error.message : 'network error');
+      console.warn('[Clines] Conversation sync paused:', error && error.message ? error.message : 'network error');
     } finally {
       conversationPollBusy = false;
     }
@@ -811,14 +817,15 @@ async function markConversationRead(conversationId) {
     if (activeConversation && activeConversation.id === conversationId) await refreshMessages(conversationId, false).catch(() => {});
   }
 }
-async function sendMessage(body, kind, media, youtubeId) {
+async function sendMessage(body, kind, media, youtubeId, options) {
   assertUser();
-  if (!activeConversation) throw new Error('Choose a conversation first.');
+  const targetConversationId = options && options.conversationId ? options.conversationId : (activeConversation && activeConversation.id);
+  if (!targetConversationId) throw new Error('Choose a conversation first.');
   const clean = String(body || '').trim();
   const k = kind || 'text';
   if (k === 'text' && !clean) return;
   const row = {
-    conversation_id: activeConversation.id,
+    conversation_id: targetConversationId,
     sender_id: user.id,
     kind: k,
     body: clean,
@@ -839,7 +846,7 @@ async function sendMessage(body, kind, media, youtubeId) {
   $('sendMessageBtn').disabled = true;
   pendingReply = null;
   $('replyBar').hidden = true;
-  await refreshMessages(activeConversation.id, true);
+  if (activeConversation && activeConversation.id === targetConversationId) await refreshMessages(targetConversationId, true);
   await refreshConversations();
   if (presenceChannel) {
     presenceChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, typing: false } }).catch(() => {});
@@ -854,6 +861,8 @@ async function handleSendMessage(event) {
 }
 async function sendMediaFile(file, body, kindOverride) {
   if (!file) return;
+  const conversationId = activeConversation && activeConversation.id;
+  if (!conversationId) throw new Error('Choose a conversation first.');
   const type = file.type || '';
   let kind = kindOverride;
   if (!kind) {
@@ -866,7 +875,7 @@ async function sendMediaFile(file, body, kindOverride) {
   status.textContent = 'Uploading ' + fmtBytes(file.size) + '…';
   try {
     const media = await uploadMedia(file, 'messages');
-    await sendMessage(body || '', kind, media);
+    await sendMessage(body || '', kind, media, null, { conversationId });
     toast('Message sent', 'Your media is uploaded and available in this conversation.');
   } finally { status.textContent = ''; }
 }
@@ -874,7 +883,7 @@ async function editMessage(id) {
   const m = currentMessages.find(x => x.id === id);
   if (!m || m.sender_id !== user.id || m.deleted_at || m.kind !== 'text') return;
   showModal({
-    kicker: 'FLOCK / MESSAGE',
+    kicker: 'CLINES / MESSAGE',
     title: 'Edit your message',
     description: 'The updated message will be visible to everyone in this chat.',
     body: '<label for="editMessageInput">MESSAGE</label><textarea id="editMessageInput" class="input-field" maxlength="10000" rows="4">' + escapeHtml(m.body || '') + '</textarea>',
@@ -894,7 +903,7 @@ async function deleteMessage(id) {
   const m = currentMessages.find(x => x.id === id);
   if (!m || m.sender_id !== user.id || m.deleted_at) return;
   showModal({
-    kicker: 'FLOCK / MESSAGE',
+    kicker: 'CLINES / MESSAGE',
     title: 'Delete this message?',
     description: 'Everyone in the conversation will see that the message was deleted.',
     body: '<div class="confirm-panel"><span class="confirm-icon">×</span><p>This cannot be undone. The message content will be replaced with a deleted notice.</p></div>',
@@ -925,7 +934,7 @@ function replyToMessage(id) {
 async function openReactionPicker(id) {
   const options = ['❤️','😂','👍','😮','😢','🔥','🎉'];
   showModal({
-    kicker: 'FLOCK / REACTION',
+    kicker: 'CLINES / REACTION',
     title: 'React to the moment',
     description: 'Pick a reaction for this message.',
     body: '<div class="reaction-picker">' + options.map(e => '<button class="reaction-option" data-pick-reaction="' + e + '">' + e + '</button>').join('') + '</div>',
@@ -958,12 +967,12 @@ async function toggleReaction(id, emoji) {
 async function createGroup() {
   await refreshFriends();
   if (!friends.length) {
-    showModal({ kicker: 'FLOCK / GROUPS', title: 'Bring your people together', description: 'You need at least one friend before creating a group.', body: '<p class="modal-empty-copy">Add a friend with their 10-digit friend code first.</p><button id="modalAddFriendLink" class="button button-primary" type="button">Add a friend</button>', hidePrimary: true });
+    showModal({ kicker: 'CLINES / GROUPS', title: 'Bring your people together', description: 'You need at least one friend before creating a group.', body: '<p class="modal-empty-copy">Add a friend with their 10-digit friend code first.</p><button id="modalAddFriendLink" class="button button-primary" type="button">Add a friend</button>', hidePrimary: true });
     $('modalAddFriendLink').addEventListener('click', () => openAddFriend());
     return;
   }
   showModal({
-    kicker: 'FLOCK / GROUPS',
+    kicker: 'CLINES / GROUPS',
     title: 'Create a group',
     description: 'Give your group a name and choose people to invite. You’ll be the owner.',
     body: '<label for="groupNameInput">GROUP NAME</label><input id="groupNameInput" class="input-field" maxlength="80" placeholder="The after-hours crew"><label>ADD FRIENDS</label><div class="selection-list">' + friends.map(p => '<label class="selection-row"><input type="checkbox" value="' + p.id + '" data-group-member><span class="avatar">' + escapeHtml(safeInitial(p.display_name)) + '</span><span class="selection-copy"><strong>' + escapeHtml(p.display_name) + '</strong><small>@' + escapeHtml(p.username) + '</small></span></label>').join('') + '</div>',
@@ -984,10 +993,10 @@ async function createGroup() {
 }
 function openAddFriend() {
   showModal({
-    kicker: 'FLOCK / FRIENDS',
+    kicker: 'CLINES / FRIENDS',
     title: 'Find your people',
     description: 'Enter the 10-digit friend code someone shared with you.',
-    body: '<label for="friendCodeInput">FRIEND CODE</label><input id="friendCodeInput" class="input-field" inputmode="numeric" maxlength="10" placeholder="0123456789"><p class="field-hint">Your code is on the left side of Flock. Share it only with people you trust.</p><div id="friendFound" class="friend-found"></div>',
+    body: '<label for="friendCodeInput">FRIEND CODE</label><input id="friendCodeInput" class="input-field" inputmode="numeric" maxlength="10" placeholder="0123456789"><p class="field-hint">Your code is on the left side of Clines. Share it only with people you trust.</p><div id="friendFound" class="friend-found"></div>',
     primary: 'Send friend request',
     onPrimary: async () => {
       const code = $('friendCodeInput').value;
@@ -1002,10 +1011,10 @@ async function openProfileEditor() {
   const avatarUrl = profile.avatar_path ? await getSignedUrl(profile.avatar_path).catch(() => '') : '';
   const backgroundLabel = profile.background_path ? (profile.background_type === 'video' ? 'A video background is set' : 'A photo background is set') : 'No custom chat background';
   showModal({
-    kicker: 'FLOCK / YOUR PROFILE',
+    kicker: 'CLINES / YOUR PROFILE',
     title: 'Your space, your style.',
     description: 'Your display name, avatar and background sync to your account across devices.',
-    body: '<div class="profile-edit-row"><div class="profile-edit-avatar">' + (avatarUrl ? '<img src="' + escapeHtml(avatarUrl) + '" alt="">' : escapeHtml(safeInitial(profile.display_name))) + '</div><div><strong class="profile-edit-name">' + escapeHtml(profile.display_name) + '</strong><div class="field-hint">@' + escapeHtml(profile.username) + ' · username cannot be changed yet</div><button id="chooseAvatarBtn" class="text-button" type="button">Change profile picture ↗</button></div></div><label for="displayNameInput">DISPLAY NAME</label><input id="displayNameInput" class="input-field" maxlength="80" value="' + escapeHtml(profile.display_name) + '"><label for="bioInput">ABOUT YOU</label><textarea id="bioInput" class="input-field" maxlength="180" rows="2" placeholder="A little about you…">' + escapeHtml(profile.bio || '') + '</textarea><div class="profile-background-row"><div><strong>Chat background</strong><small>' + escapeHtml(backgroundLabel) + '</small></div><button id="chooseBackgroundBtn" class="button button-soft" type="button">Choose photo or video</button><button id="clearBackgroundBtn" class="text-button" type="button">Remove</button></div><div class="profile-security-row"><div><strong>Account password</strong><small>Change your Flock password any time.</small></div><button id="changePasswordBtn" class="button button-soft" type="button">Change password</button></div>',
+    body: '<div class="profile-edit-row"><div class="profile-edit-avatar">' + (avatarUrl ? '<img src="' + escapeHtml(avatarUrl) + '" alt="">' : escapeHtml(safeInitial(profile.display_name))) + '</div><div><strong class="profile-edit-name">' + escapeHtml(profile.display_name) + '</strong><div class="field-hint">@' + escapeHtml(profile.username) + ' · username cannot be changed yet</div><button id="chooseAvatarBtn" class="text-button" type="button">Change profile picture ↗</button></div></div><label for="displayNameInput">DISPLAY NAME</label><input id="displayNameInput" class="input-field" maxlength="80" value="' + escapeHtml(profile.display_name) + '"><label for="bioInput">ABOUT YOU</label><textarea id="bioInput" class="input-field" maxlength="180" rows="2" placeholder="A little about you…">' + escapeHtml(profile.bio || '') + '</textarea><div class="profile-background-row"><div><strong>Chat background</strong><small>' + escapeHtml(backgroundLabel) + '</small></div><button id="chooseBackgroundBtn" class="button button-soft" type="button">Choose photo or video</button><button id="clearBackgroundBtn" class="text-button" type="button">Remove</button></div><div class="profile-security-row"><div><strong>Account password</strong><small>Change your Clines password any time.</small></div><button id="changePasswordBtn" class="button button-soft" type="button">Change password</button></div>',
     primary: 'Save profile',
     onPrimary: async () => {
       const displayName = $('displayNameInput').value.trim();
@@ -1040,9 +1049,9 @@ async function openProfileEditor() {
 }
 async function openChangePassword() {
   showModal({
-    kicker: 'FLOCK / ACCOUNT SECURITY',
+    kicker: 'CLINES / ACCOUNT SECURITY',
     title: 'Update your password',
-    description: 'Your password is hashed on the server. Flock never stores or displays the original password.',
+    description: 'Your password is hashed on the server. Clines never stores or displays the original password.',
     body: '<label for="currentPasswordInput">CURRENT PASSWORD</label><input id="currentPasswordInput" class="input-field" type="password" autocomplete="current-password" maxlength="128" placeholder="Current password"><label for="newPasswordInput">NEW PASSWORD</label><input id="newPasswordInput" class="input-field" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="At least 8 characters"><label for="confirmNewPasswordInput">CONFIRM NEW PASSWORD</label><input id="confirmNewPasswordInput" class="input-field" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Type it again">',
     primary: 'Update password',
     onPrimary: async () => {
@@ -1108,23 +1117,62 @@ async function applyChatWallpaper() {
   }
   node.classList.add('has-wallpaper');
 }
-function openConversationDetails() {
+async function openConversationDetails() {
   if (!activeConversation) return;
   if (activeConversation.kind === 'direct') {
+    const peer = activeConversation.peer;
+    const blocked = peer ? await isUserBlocked(peer.id).catch(() => false) : false;
     showModal({
-      kicker: 'FLOCK / CONVERSATION',
+      kicker: 'CLINES / CONVERSATION',
       title: activeConversation.title,
-      description: activeConversation.peer ? '@' + activeConversation.peer.username + ' · friend code ' + activeConversation.peer.friend_code : 'Direct conversation',
-      body: '<div class="details-card"><strong>Messages belong to you and this friend</strong><p>You can edit or delete messages you sent. Read receipts turn green when the other person has read your message.</p></div>',
+      description: peer ? '@' + peer.username + ' · friend code ' + peer.friend_code : 'Direct conversation',
+      body: '<div class="details-card"><strong>One-to-one conversation</strong><p>Voice calls are available in direct chats. You can block this account from chat options and manage blocked users in the sidebar.</p></div>' +
+        (peer ? '<button id="detailsBlockUserBtn" class="modal-option" type="button">' + (blocked ? '✓ Unblock @' : '⊘ Block @') + escapeHtml(peer.username) + '</button>' : ''),
       hidePrimary: true
+    });
+    if (peer && $('detailsBlockUserBtn')) $('detailsBlockUserBtn').addEventListener('click', () => {
+      closeModal();
+      if (blocked) unblockUser(peer.id).catch(err => toast('Could not unblock user', err.message, true));
+      else confirmBlockUser(peer.id, peer.username);
     });
     return;
   }
   showGroupDetails();
 }
+async function confirmDisbandGroup(conversationId, groupName) {
+  showModal({
+    kicker: 'CLINES / DANGER ZONE',
+    title: 'Disband this group?',
+    description: 'The group, its membership, and its chat history will be deleted for everyone. This cannot be undone.',
+    body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>Everyone will lose access to "' + escapeHtml(groupName) + '".</p></div>',
+    primary: 'Disband group',
+    cancel: 'Keep group',
+    onPrimary: async () => {
+      const { error } = await db.rpc('flock_disband_group', { p_conversation_id: conversationId });
+      if (error) throw error;
+      closeModal();
+      activeConversation = null;
+      $('chatView').hidden = true;
+      $('emptyChat').hidden = false;
+      $('chatWorkspace').classList.remove('chat-has-conversation', 'chat-open');
+      await refreshConversations();
+      toast('Group disbanded', 'The group has been removed.');
+    }
+  });
+}
+function canRemoveGroupMember(actorRole, targetRole, targetId) {
+  if (targetRole === 'owner') return false;
+  if (targetId === user.id) return actorRole !== 'owner';
+  if (actorRole === 'owner') return true;
+  if (actorRole === 'admin') return targetRole === 'co_admin' || targetRole === 'member';
+  if (actorRole === 'co_admin') return targetRole === 'member';
+  return false;
+}
 async function showGroupDetails() {
-  if (!activeConversation) return;
+  if (!activeConversation || activeConversation.kind !== 'group') return;
   const convId = activeConversation.id;
+  const convName = activeConversation.name || 'Group';
+  const actorRole = activeConversation.myRole || 'member';
   const { data: members, error } = await db.from('flock_conversation_members')
     .select('user_id,role,joined_at').eq('conversation_id', convId).order('joined_at');
   if (error) throw error;
@@ -1133,22 +1181,31 @@ async function showGroupDetails() {
   if (pRes.error) throw pRes.error;
   await warmProfileMedia(pRes.data || []);
   const map = new Map((pRes.data || []).map(x => [x.id,x]));
-  const canAdmin = ['owner','admin'].includes(activeConversation.myRole);
-  const body = '<label for="editGroupName">GROUP NAME</label><div class="modal-inline-row"><input id="editGroupName" class="input-field" maxlength="80" value="' + escapeHtml(activeConversation.name || '') + '"><button id="saveGroupNameBtn" class="button button-soft" type="button">Rename</button></div><label>MEMBERS · ' + members.length + '</label><div class="modal-profile-list">' + members.map(m => {
-    const p = map.get(m.user_id) || { display_name: 'Flock friend', username: 'friend' };
-    const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
-    const roleOptions = ['admin','co_admin','member'].map(role => '<option value="' + role + '" ' + (m.role === role ? 'selected' : '') + '>' + (role === 'co_admin' ? 'Co-admin' : role === 'admin' ? 'Admin' : 'Member') + '</option>').join('');
-    return '<div class="modal-member-row"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="modal-member-copy"><strong>' + escapeHtml(p.display_name) + (m.user_id === user.id ? ' (you)' : '') + '</strong><small>@' + escapeHtml(p.username) + '</small></span>' + (m.role === 'owner' ? '<span class="role-pill owner">Owner</span>' : canAdmin ? '<select class="form-select group-role-select" data-member-role="' + m.user_id + '">' + roleOptions + '</select>' : '<span class="role-pill">' + escapeHtml(m.role.replace('_',' ')) + '</span>') + '</div>';
-  }).join('') + '</div><p class="field-hint">Owners can manage admins and co-admins. Admins can manage co-admins and members. Co-admins can help add people to the group.</p>';
+  const canAdmin = ['owner','admin'].includes(actorRole);
+  const body = '<label for="editGroupName">GROUP NAME</label><div class="modal-inline-row"><input id="editGroupName" class="input-field" maxlength="80" value="' + escapeHtml(convName) + '">' +
+    (canAdmin ? '<button id="saveGroupNameBtn" class="button button-soft" type="button">Rename</button>' : '') + '</div>' +
+    '<label>MEMBERS · ' + members.length + '</label><div class="modal-profile-list">' + members.map(m => {
+      const p = map.get(m.user_id) || { display_name: 'Clines user', username: 'user' };
+      const url = p.avatar_path ? peekSignedUrl(p.avatar_path) : '';
+      const availableRoles = actorRole === 'owner' ? ['admin','co_admin','member'] : ['co_admin','member'];
+      const roleOptions = availableRoles.map(role => '<option value="' + role + '" ' + (m.role === role ? 'selected' : '') + '>' + (role === 'co_admin' ? 'Co-admin' : role === 'admin' ? 'Admin' : 'Member') + '</option>').join('');
+      const controls = m.role === 'owner' ? '<span class="role-pill owner">Owner</span>' :
+        (canAdmin ? '<select class="form-select group-role-select" data-member-role="' + m.user_id + '">' + roleOptions + '</select>' :
+        '<span class="role-pill">' + escapeHtml(m.role.replace('_',' ')) + '</span>');
+      const remove = canRemoveGroupMember(actorRole, m.role, m.user_id) ? '<button class="mini-action remove-group-member" data-remove-group-member="' + m.user_id + '" title="Remove member" aria-label="Remove member">×</button>' : '';
+      return '<div class="modal-member-row"><span class="avatar">' + (url ? '<img src="' + escapeHtml(url) + '" alt="">' : '<span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span>') + '</span><span class="modal-member-copy"><strong>' + escapeHtml(p.display_name) + (m.user_id === user.id ? ' (you)' : '') + '</strong><small>@' + escapeHtml(p.username) + '</small></span>' + controls + remove + '</div>';
+    }).join('') + '</div><p class="field-hint">Owners can manage every non-owner. Admins can manage members and co-admins. Co-admins can remove regular members. The server checks permissions before changing membership.</p>' +
+    (actorRole === 'owner' ? '<button id="disbandGroupBtn" class="modal-option danger-option" type="button">⌫ Disband this group</button>' :
+    '<button id="leaveGroupBtn" class="modal-option danger-option" type="button">↗ Leave this group</button>');
   showModal({
-    kicker: 'FLOCK / GROUP SETTINGS',
-    title: activeConversation.name || 'Group',
-    description: 'Manage group membership and roles.',
-    body: body,
+    kicker: 'CLINES / GROUP SETTINGS',
+    title: convName,
+    description: 'Manage members, roles, and the group itself.',
+    body,
     primary: 'Done',
     onPrimary: async () => closeModal()
   });
-  $('saveGroupNameBtn').addEventListener('click', async () => {
+  if ($('saveGroupNameBtn')) $('saveGroupNameBtn').addEventListener('click', async () => {
     const name = $('editGroupName').value.trim();
     if (!name || name.length > 80) { feedback('modalFeedback', 'Group names must be 1–80 characters.', true); return; }
     const { error: saveError } = await db.from('flock_conversations').update({ name }).eq('id', convId);
@@ -1169,7 +1226,136 @@ async function showGroupDetails() {
       toast('Group role updated', '');
     } catch (err) { feedback('modalFeedback', err.message || 'Could not change role.', true); }
   }));
+  $('modalBody').querySelectorAll('[data-remove-group-member]').forEach(btn => btn.addEventListener('click', () => {
+    const targetId = btn.dataset.removeGroupMember;
+    const target = members.find(m => m.user_id === targetId);
+    const targetProfile = map.get(targetId);
+    const isSelf = targetId === user.id;
+    showModal({
+      kicker: 'CLINES / GROUP MEMBERS',
+      title: isSelf ? 'Leave this group?' : 'Remove this member?',
+      description: isSelf ? 'You will no longer see or receive messages from this group.' : 'This person will lose access to the group chat.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(isSelf ? 'You can be invited back later.' : ((targetProfile && targetProfile.display_name) || 'This member') + ' will be removed from ' + convName + '.') + '</p></div>',
+      primary: isSelf ? 'Leave group' : 'Remove member',
+      onPrimary: async () => {
+        const { error: removeError } = await db.rpc('flock_remove_group_member', { p_conversation_id: convId, p_user_id: targetId });
+        if (removeError) throw removeError;
+        closeModal();
+        await refreshConversations();
+        if (isSelf) {
+          activeConversation = null;
+          $('chatView').hidden = true;
+          $('emptyChat').hidden = false;
+          $('chatWorkspace').classList.remove('chat-has-conversation', 'chat-open');
+          toast('Left group', '');
+        } else {
+          activeConversation = conversations.find(c => c.id === convId) || activeConversation;
+          await showGroupDetails();
+          toast('Member removed', 'The group membership was updated.');
+        }
+      }
+    });
+  }));
+  if ($('disbandGroupBtn')) $('disbandGroupBtn').addEventListener('click', () => confirmDisbandGroup(convId, convName));
+  if ($('leaveGroupBtn')) $('leaveGroupBtn').addEventListener('click', () => {
+    showModal({
+      kicker: 'CLINES / GROUP MEMBERS',
+      title: 'Leave this group?',
+      description: 'You can be invited back by a group admin.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">↗</span><p>You will leave "' + escapeHtml(convName) + '".</p></div>',
+      primary: 'Leave group',
+      onPrimary: async () => {
+        const { error: leaveError } = await db.rpc('flock_remove_group_member', { p_conversation_id: convId, p_user_id: user.id });
+        if (leaveError) throw leaveError;
+        closeModal();
+        activeConversation = null;
+        $('chatView').hidden = true;
+        $('emptyChat').hidden = false;
+        $('chatWorkspace').classList.remove('chat-has-conversation', 'chat-open');
+        await refreshConversations();
+        toast('Left group', '');
+      }
+    });
+  });
 }
+async function isUserBlocked(userId) {
+  if (!userId || !user) return false;
+  const { data, error } = await db.from('flock_user_blocks').select('blocked_id').eq('blocker_id', user.id).eq('blocked_id', userId).maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+async function confirmBlockUser(userId, username) {
+  showModal({
+    kicker: 'CLINES / PRIVACY',
+    title: 'Block @' + String(username || 'user'),
+    description: 'You and this account will no longer be able to use Clines direct chat with each other.',
+    body: '<div class="confirm-panel"><span class="confirm-icon">⊘</span><p>Blocking removes the friendship if one exists and prevents direct messages and calls. You can unblock them later from Blocked users.</p></div>',
+    primary: 'Block user',
+    onPrimary: async () => {
+      const { error } = await db.rpc('flock_block_user', { p_user_id: userId });
+      if (error) throw error;
+      closeModal();
+      await refreshFriends().catch(() => {});
+      await refreshConversations().catch(() => {});
+      if (activeConversation && activeConversation.kind === 'direct' && activeConversation.peer && activeConversation.peer.id === userId) {
+        activeConversation = null;
+        $('chatView').hidden = true;
+        $('emptyChat').hidden = false;
+        $('chatWorkspace').classList.remove('chat-has-conversation', 'chat-open');
+      }
+      toast('User blocked', '@' + String(username || 'user') + ' is now blocked.');
+    }
+  });
+}
+async function unblockUser(userId) {
+  const { error } = await db.rpc('flock_unblock_user', { p_user_id: userId });
+  if (error) throw error;
+  await refreshFriends().catch(() => {});
+  await refreshConversations().catch(() => {});
+  toast('User unblocked', 'They can interact with you again.');
+  await openBlockedUsers();
+}
+async function openBlockedUsers() {
+  assertUser();
+  const { data, error } = await db.from('flock_user_blocks').select('blocked_id,created_at').eq('blocker_id', user.id).order('created_at', { ascending: false });
+  if (error) throw error;
+  const ids = (data || []).map(row => row.blocked_id);
+  const profilesResult = ids.length ? await db.from('flock_profiles').select('id,username,display_name,avatar_path').in('id', ids) : { data: [], error: null };
+  if (profilesResult.error) throw profilesResult.error;
+  const pmap = new Map((profilesResult.data || []).map(p => [p.id, p]));
+  const body = ids.length ? '<div class="modal-profile-list">' + ids.map(id => {
+    const p = pmap.get(id) || { id, username: 'unavailable', display_name: 'Clines user' };
+    return '<div class="modal-member-row"><span class="avatar"><span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span></span><span class="modal-member-copy"><strong>' + escapeHtml(p.display_name) + '</strong><small>@' + escapeHtml(p.username) + '</small></span><button class="button button-soft" type="button" data-unblock-user="' + id + '">Unblock</button></div>';
+  }).join('') + '</div>' : '<div class="details-card"><strong>No blocked users</strong><p>When you block someone from a direct chat, they will appear here.</p></div>';
+  showModal({
+    kicker: 'CLINES / PRIVACY',
+    title: 'Blocked users',
+    description: 'Only you can see this list. Unblock someone to allow direct interaction again.',
+    body,
+    hidePrimary: true
+  });
+  $('modalBody').querySelectorAll('[data-unblock-user]').forEach(btn => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const { error: unblockError } = await db.rpc('flock_unblock_user', { p_user_id: btn.dataset.unblockUser });
+      if (unblockError) throw unblockError;
+      await refreshFriends().catch(() => {});
+      await refreshConversations().catch(() => {});
+      toast('User unblocked', 'They can interact with you again.');
+      await openBlockedUsers();
+    } catch (err) { btn.disabled = false; feedback('modalFeedback', err.message || 'Could not unblock user.', true); }
+  }));
+}
+function openAboutNew() {
+  showModal({
+    kicker: 'CLINES / VERSION 1.0.4',
+    title: 'About New',
+    description: 'What is new in the Clines 1.0.4 update.',
+    body: '<div class="release-notes"><div class="release-note"><b>01</b><span><strong>Clines is the new name</strong><small>Fresh branding across the app, installer, and Android build.</small></span></div><div class="release-note"><b>02</b><span><strong>Group controls</strong><small>Owners can disband groups; permitted admins can remove members; non-owners can leave.</small></span></div><div class="release-note"><b>03</b><span><strong>Block and unblock users</strong><small>Block someone from a direct chat and manage your blocked list from the sidebar.</small></span></div><div class="release-note"><b>04</b><span><strong>Voice calls</strong><small>Direct one-to-one voice calls with accept, decline, and hang-up controls. Network support varies.</small></span></div><div class="release-note"><b>05</b><span><strong>Media note reliability</strong><small>Improved recorder format handling and keeps voice/video notes attached to the chat they were recorded in.</small></span></div></div>',
+    hidePrimary: true
+  });
+}
+
 async function addPeopleToGroup() {
   if (!activeConversation || activeConversation.kind !== 'group') return;
   await refreshFriends();
@@ -1177,7 +1363,7 @@ async function addPeopleToGroup() {
   const choices = friends.filter(f => !memberIds.has(f.id));
   if (!choices.length) { toast('Everyone is already here', 'Add another friend first.'); return; }
   showModal({
-    kicker: 'FLOCK / GROUPS',
+    kicker: 'CLINES / GROUPS',
     title: 'Bring another friend in',
     description: 'Choose accepted friends to add to this group.',
     body: '<div class="selection-list">' + choices.map(p => '<label class="selection-row"><input type="checkbox" value="' + p.id + '" data-add-group-member><span class="avatar"><span class="avatar-initial">' + escapeHtml(safeInitial(p.display_name)) + '</span></span><span class="selection-copy"><strong>' + escapeHtml(p.display_name) + '</strong><small>@' + escapeHtml(p.username) + '</small></span></label>').join('') + '</div>',
@@ -1223,7 +1409,7 @@ async function openStatuses() {
     return '<button class="moment-row" data-view-status="' + s.id + '"><span class="moment-thumb">' + (av ? '<img src="' + escapeHtml(av) + '" alt="">' : escapeHtml(s.kind === 'text' ? '✦' : s.kind === 'video' ? '▷' : '◌')) + '</span><span class="moment-row-copy"><strong>' + escapeHtml(p.display_name || 'A friend') + (s.user_id === user.id ? ' · yours' : '') + '</strong><span>' + escapeHtml(s.body || (s.kind === 'video' ? 'Video moment' : s.kind === 'image' ? 'Photo moment' : 'A moment')) + ' · ' + escapeHtml(fmtTime(s.created_at)) + '</span></span></button>';
   };
   showModal({
-    kicker: 'FLOCK / MOMENTS',
+    kicker: 'CLINES / MOMENTS',
     title: 'Little moments, shared.',
     description: 'Moments disappear 24 hours after they are posted.',
     body: '<div class="moment-toolbar"><button id="postTextStatusBtn" class="button button-soft" type="button">✦ Post a thought</button><button id="postMediaStatusBtn" class="button button-primary" type="button">＋ Add photo/video</button></div><label>YOUR MOMENTS</label><div class="moment-list">' + (mine.map(makeRow).join('') || '<p class="modal-empty-copy">You have not posted a moment yet.</p>') + '</div><label>FRIENDS’ MOMENTS</label><div class="moment-list">' + (other.map(makeRow).join('') || '<p class="modal-empty-copy">New moments from friends will appear here.</p>') + '</div>',
@@ -1239,7 +1425,7 @@ async function openStatuses() {
 async function composeStatus(kind, file) {
   if (kind === 'text') {
     showModal({
-      kicker: 'FLOCK / MOMENTS',
+      kicker: 'CLINES / MOMENTS',
       title: 'Share a thought',
       description: 'Your status is visible to friends for 24 hours.',
       body: '<label for="statusTextInput">WHAT’S THE MOMENT?</label><textarea id="statusTextInput" class="input-field" maxlength="500" rows="4" placeholder="A little update for your people…"></textarea>',
@@ -1261,7 +1447,7 @@ async function composeStatus(kind, file) {
   const statusKind = type.startsWith('video/') ? 'video' : type.startsWith('image/') ? 'image' : '';
   if (!statusKind) throw new Error('Choose a photo, MP4 or WebM video.');
   showModal({
-    kicker: 'FLOCK / MOMENTS',
+    kicker: 'CLINES / MOMENTS',
     title: 'Share this moment?',
     description: 'It will disappear after 24 hours.',
     body: '<div class="confirm-panel"><span class="confirm-icon">' + (statusKind === 'video' ? '▷' : '◌') + '</span><p><strong>' + escapeHtml(file.name) + '</strong><br>' + fmtBytes(file.size) + '</p></div><label for="statusCaptionInput">CAPTION (OPTIONAL)</label><input id="statusCaptionInput" class="input-field" maxlength="500" placeholder="Add a little context…">',
@@ -1293,7 +1479,7 @@ async function viewStatus(index) {
         if (error && error.code !== '23505') throw error;
       }
     } catch (error) {
-      console.warn('[Flock] Status view could not be recorded:', error.message);
+      console.warn('[Clines] Status view could not be recorded:', error.message);
     }
   }
   let media = '';
@@ -1304,7 +1490,7 @@ async function viewStatus(index) {
   }
   const p = s.author || profile;
   showModal({
-    kicker: 'FLOCK / MOMENT ' + (index + 1) + ' OF ' + statuses.length,
+    kicker: 'CLINES / MOMENT ' + (index + 1) + ' OF ' + statuses.length,
     title: p.display_name || 'A moment',
     description: '@' + (p.username || 'friend') + ' · ' + fmtTime(s.created_at) + ' · expires ' + fmtTime(s.expires_at),
     body: media + (s.body ? '<div class="status-caption">' + linkifyText(s.body) + '</div>' : ''),
@@ -1338,9 +1524,9 @@ async function viewStatus(index) {
 }
 async function openYouTubeShare() {
   showModal({
-    kicker: 'FLOCK / SHARE',
+    kicker: 'CLINES / SHARE',
     title: 'Bring YouTube into chat',
-    description: 'Paste a YouTube link and Flock will create an inline preview.',
+    description: 'Paste a YouTube link and Clines will create an inline preview.',
     body: '<label for="youtubeUrlInput">YOUTUBE URL</label><input id="youtubeUrlInput" class="input-field" type="url" placeholder="https://www.youtube.com/watch?v=…"><label for="youtubeCaptionInput">MESSAGE (OPTIONAL)</label><input id="youtubeCaptionInput" class="input-field" maxlength="500" placeholder="You have to see this…">',
     primary: 'Share video',
     onPrimary: async () => {
@@ -1372,7 +1558,7 @@ function insertAtCursor(text) {
 function openEmojiPicker() {
   const emojis = ['😀','😂','🥹','🥰','😍','😭','😎','🤔','😮','🙌','👏','👍','❤️','💚','✨','🔥','🎉','💀','👀','🙏','🥳','🤍','💜','🤝','🫶','💯','✅','🌸','🌙','⭐','🦋','🐣'];
   showModal({
-    kicker: 'FLOCK / EXPRESSION',
+    kicker: 'CLINES / EXPRESSION',
     title: 'Say it with a little feeling',
     description: 'Choose an emoji to add to your message.',
     body: '<div class="emoji-picker">' + emojis.map(e => '<button class="emoji-option" data-insert-emoji="' + e + '">' + e + '</button>').join('') + '</div>',
@@ -1383,45 +1569,52 @@ function openEmojiPicker() {
   }));
 }
 function supportedMime(kind) {
-  const list = kind === 'video' ? ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']
-    : ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'];
+  const list = kind === 'video'
+    ? ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4']
+    : ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4;codecs=mp4a.40.2','audio/mp4'];
   if (typeof MediaRecorder === 'undefined') return '';
-  return list.find(type => MediaRecorder.isTypeSupported(type)) || '';
+  try { return list.find(type => MediaRecorder.isTypeSupported(type)) || ''; }
+  catch { return ''; }
 }
 async function startRecording(kind) {
   assertUser();
   if (!activeConversation) throw new Error('Open a conversation before recording.');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-    throw new Error('Recording is not supported by this device/browser. Try a newer browser or the installed app.');
+    throw new Error('Recording is not supported by this device/browser. Try the installed app or a newer browser.');
   }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') throw new Error('Finish or cancel the current recording first.');
   const isVideo = kind === 'video_note';
+  const targetConversationId = activeConversation.id;
   const stream = await navigator.mediaDevices.getUserMedia(isVideo
-    ? { audio: true, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } } }
-    : { audio: true });
+    ? { audio: { echoCancellation: true, noiseSuppression: true }, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 }, frameRate: { ideal: 24, max: 30 } } }
+    : { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   activeMediaStream = stream;
-  recordingConversationId = activeConversation.id;
+  recordingConversationId = targetConversationId;
   recordingKind = kind;
   recordingChunks = [];
   const mimeType = supportedMime(isVideo ? 'video' : 'audio');
   if (!mimeType) {
     stream.getTracks().forEach(track => track.stop());
     activeMediaStream = null;
-    throw new Error('This browser does not support the necessary recording format.');
+    throw new Error('This browser does not support a compatible recording format.');
   }
-  try { mediaRecorder = new MediaRecorder(stream, { mimeType }); }
+  let recorder;
+  try { recorder = new MediaRecorder(stream, { mimeType }); }
   catch (error) {
     stream.getTracks().forEach(track => track.stop());
     activeMediaStream = null;
     throw error;
   }
-  mediaRecorder.ondataavailable = event => { if (event.data && event.data.size) recordingChunks.push(event.data); };
-  mediaRecorder.onerror = () => toast('Recording interrupted', 'Try recording again.', true);
-  mediaRecorder.onstop = () => handleRecordingStopped(mimeType, isVideo);
+  mediaRecorder = recorder;
+  recorder.ondataavailable = event => { if (event.data && event.data.size > 0) recordingChunks.push(event.data); };
+  recorder.onerror = () => toast('Recording interrupted', 'Try recording again.', true);
+  recorder.onstop = () => handleRecordingStopped(recorder.mimeType || mimeType, isVideo, targetConversationId, stream);
   $('recordingTitle').textContent = isVideo ? 'Recording video note' : 'Recording voice note';
   $('recordingPreview').hidden = !isVideo;
   if (isVideo) {
     $('recordingPreview').srcObject = stream;
     $('recordingPreview').muted = true;
+    $('recordingPreview').playsInline = true;
     $('recordingPreview').play().catch(() => {});
   }
   $('recordingPanel').hidden = false;
@@ -1430,17 +1623,25 @@ async function startRecording(kind) {
   recordingStartedAt = Date.now();
   updateRecordingTimer();
   recordingTimer = setInterval(updateRecordingTimer, 250);
-  mediaRecorder.start(250);
+  try { recorder.start(500); }
+  catch (error) {
+    clearInterval(recordingTimer);
+    stream.getTracks().forEach(track => track.stop());
+    activeMediaStream = null;
+    mediaRecorder = null;
+    $('recordingPanel').hidden = true;
+    $('voiceNoteBtn').classList.remove('recording');
+    $('videoNoteBtn').classList.remove('recording');
+    throw error;
+  }
 }
 function updateRecordingTimer() {
   $('recordingTimer').textContent = fmtDuration((Date.now() - recordingStartedAt) / 1000);
 }
-async function handleRecordingStopped(mimeType, isVideo) {
+async function handleRecordingStopped(mimeType, isVideo, targetConversationId, stream) {
   clearInterval(recordingTimer);
-  if (activeMediaStream) activeMediaStream.getTracks().forEach(track => track.stop());
-  const stream = activeMediaStream;
-  activeMediaStream = null;
   if (stream) stream.getTracks().forEach(track => track.stop());
+  if (activeMediaStream === stream) activeMediaStream = null;
   $('recordingPreview').srcObject = null;
   $('recordingPanel').hidden = true;
   $('voiceNoteBtn').classList.remove('recording');
@@ -1448,30 +1649,41 @@ async function handleRecordingStopped(mimeType, isVideo) {
   const chunks = recordingChunks;
   recordingChunks = [];
   if (!chunks.length) return;
-  const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
-  if (!blob.size) return;
-  const ext = mimeType.indexOf('video/') === 0 ? 'webm' : mimeType.indexOf('audio/ogg') === 0 ? 'ogg' : mimeType.indexOf('audio/mp4') === 0 ? 'm4a' : 'webm';
-  const file = new File([blob], (isVideo ? 'video-note.' : 'voice-note.') + ext, { type: blob.type });
-  if (!activeConversation || activeConversation.id !== recordingConversationId) {
-    toast('Recording kept private', 'The chat changed before this note finished. Record again in the right chat.', true);
-    return;
+  const baseType = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  const blob = new Blob(chunks, { type: baseType });
+  if (!blob.size) { toast('Empty recording', 'Please record again and speak or keep the camera running a little longer.', true); return; }
+  const extByType = { 'video/webm':'webm', 'video/mp4':'mp4', 'audio/webm':'webm', 'audio/ogg':'ogg', 'audio/mp4':'m4a', 'audio/mpeg':'mp3' };
+  const ext = extByType[baseType];
+  if (!ext) { toast('Unsupported recording format', 'Try recording again on this device.', true); return; }
+  const file = new File([blob], (isVideo ? 'video-note.' : 'voice-note.') + ext, { type: baseType });
+  if (!activeConversation || activeConversation.id !== targetConversationId) {
+    toast('Recording kept private', 'The chat changed before this note finished. The recording will still be sent to the original chat.', false);
   }
+  const status = $('composerStatus');
+  status.textContent = 'Uploading note…';
   try {
     const media = await uploadMedia(file, 'messages');
-    await sendMessage('', isVideo ? 'video_note' : 'voice', media);
-    toast(isVideo ? 'Video note sent' : 'Voice note sent', '');
+    await sendMessage('', isVideo ? 'video_note' : 'voice', media, null, { conversationId: targetConversationId });
+    toast(isVideo ? 'Video note sent' : 'Voice note sent', 'Your note was sent to the conversation where you recorded it.');
   } catch (error) { toast('Could not send recording', error.message || 'Try again.', true); }
+  finally { status.textContent = ''; }
 }
 function stopRecording(cancel) {
   clearInterval(recordingTimer);
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+  const recorder = mediaRecorder;
+  if (!recorder || recorder.state === 'inactive') {
     if (activeMediaStream) activeMediaStream.getTracks().forEach(track => track.stop());
     activeMediaStream = null;
+    recordingChunks = [];
     $('recordingPanel').hidden = true;
+    $('recordingPreview').srcObject = null;
+    $('voiceNoteBtn').classList.remove('recording');
+    $('videoNoteBtn').classList.remove('recording');
+    mediaRecorder = null;
     return;
   }
   if (cancel) {
-    mediaRecorder.onstop = () => {
+    recorder.onstop = () => {
       if (activeMediaStream) activeMediaStream.getTracks().forEach(track => track.stop());
       activeMediaStream = null;
       recordingChunks = [];
@@ -1481,9 +1693,234 @@ function stopRecording(cancel) {
       $('videoNoteBtn').classList.remove('recording');
     };
   }
-  mediaRecorder.stop();
-  mediaRecorder = null;
+  try { recorder.stop(); }
+  finally { mediaRecorder = null; }
 }
+async function sendCallSignalTo(conversationId, recipientId, callId, signalType, payload) {
+  const { error } = await db.from('flock_call_signals').insert({
+    conversation_id: conversationId, sender_id: user.id, recipient_id: recipientId,
+    call_id: callId, signal_type: signalType, payload: payload || {}
+  });
+  if (error) throw error;
+}
+function setCallStatus(text) {
+  const node = $('callStatusText');
+  if (node) node.textContent = text;
+}
+function showCallModal(title, status) {
+  showModal({
+    kicker: 'CLINES / VOICE CALL',
+    title: title || 'Voice call',
+    description: 'Clines direct voice call · keep this window open during the call.',
+    body: '<div class="call-status-panel"><span class="call-pulse"></span><strong id="callStatusText">' + escapeHtml(status || 'Connecting…') + '</strong><small>Audio only. Your browser or device may ask for microphone permission.</small></div><button id="endVoiceCallBtn" class="button button-danger button-wide" type="button">End call</button>',
+    hidePrimary: true,
+    hideFooter: true,
+    onCancel: () => endVoiceCall(true)
+  });
+  $('endVoiceCallBtn').addEventListener('click', () => endVoiceCall(true));
+}
+function makePeerConnection(call) {
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  });
+  call.pc = pc;
+  pc.onicecandidate = event => {
+    if (!event.candidate || activeCall !== call) return;
+    const candidate = event.candidate.toJSON();
+    if (!call.signalReady) call.localCandidates.push(candidate);
+    else sendCallSignalTo(call.conversationId, call.peerId, call.id, 'candidate', { candidate }).catch(err => console.warn('[Clines call] ICE candidate failed:', err.message));
+  };
+  pc.ontrack = event => {
+    const audio = $('remoteCallAudio');
+    if (audio && event.streams && event.streams[0]) {
+      audio.srcObject = event.streams[0];
+      audio.play().catch(() => setCallStatus('Connected. Tap the call screen if audio does not start.'));
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    if (activeCall !== call) return;
+    if (pc.connectionState === 'connected') setCallStatus('Connected · voice call in progress');
+    else if (pc.connectionState === 'connecting') setCallStatus('Connecting audio…');
+    else if (pc.connectionState === 'failed') setCallStatus('Could not connect. Check network permissions and try again.');
+  };
+  return pc;
+}
+async function flushLocalCallCandidates(call) {
+  const pending = call.localCandidates.splice(0);
+  for (const candidate of pending) await sendCallSignalTo(call.conversationId, call.peerId, call.id, 'candidate', { candidate });
+}
+async function flushRemoteCallCandidates(call) {
+  if (!call.pc || !call.pc.remoteDescription) return;
+  const pending = call.remoteCandidates.splice(0);
+  for (const candidate of pending) {
+    try { await call.pc.addIceCandidate(candidate); }
+    catch (error) { console.warn('[Clines call] Skipped ICE candidate:', error.message); }
+  }
+}
+async function startVoiceCall() {
+  assertUser();
+  const conversation = activeConversation;
+  if (!conversation || conversation.kind !== 'direct' || !conversation.peer) throw new Error('Open a direct conversation to start a voice call.');
+  if (activeCall) throw new Error('A voice call is already active or ringing.');
+  const call = {
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2),
+    conversationId: conversation.id, peerId: conversation.peer.id,
+    peerName: conversation.peer.display_name || conversation.peer.username,
+    direction: 'outgoing', pc: null, localStream: null, localCandidates: [], remoteCandidates: [], signalReady: false
+  };
+  activeCall = call;
+  try {
+    call.localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    const pc = makePeerConnection(call);
+    call.localStream.getTracks().forEach(track => pc.addTrack(track, call.localStream));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    showCallModal('Calling ' + call.peerName, 'Calling @' + (conversation.peer.username || 'friend') + '…');
+    await sendCallSignalTo(call.conversationId, call.peerId, call.id, 'offer', { offer: pc.localDescription });
+    call.signalReady = true;
+    await flushLocalCallCandidates(call);
+  } catch (error) {
+    await endVoiceCall(false);
+    throw new Error(error && error.name === 'NotAllowedError' ? 'Allow microphone access to start a voice call.' : (error.message || 'Could not start this voice call.'));
+  }
+}
+function showIncomingCallModal(call) {
+  showModal({
+    kicker: 'CLINES / INCOMING CALL',
+    title: call.peerName + ' is calling',
+    description: 'Voice call request · accept only if you want to talk now.',
+    body: '<div class="call-status-panel"><span class="call-pulse"></span><strong>Incoming voice call</strong><small>Allow microphone access when asked. This call uses internet connectivity.</small></div><div class="call-action-row"><button id="declineVoiceCallBtn" class="button button-soft" type="button">Decline</button><button id="acceptVoiceCallBtn" class="button button-primary" type="button">Accept call</button></div>',
+    hidePrimary: true,
+    hideFooter: true,
+    onCancel: () => declineVoiceCall()
+  });
+  $('acceptVoiceCallBtn').addEventListener('click', () => acceptVoiceCall().catch(err => {
+    toast('Could not answer call', err.message || 'Try again.', true);
+    endVoiceCall(true);
+  }));
+  $('declineVoiceCallBtn').addEventListener('click', () => declineVoiceCall().catch(err => toast('Could not decline call', err.message, true)));
+}
+async function acceptVoiceCall() {
+  const call = activeCall;
+  if (!call || call.direction !== 'incoming' || !call.offer) return;
+  try {
+    call.localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    const pc = makePeerConnection(call);
+    call.localStream.getTracks().forEach(track => pc.addTrack(track, call.localStream));
+    await pc.setRemoteDescription(call.offer);
+    await flushRemoteCallCandidates(call);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    showCallModal('Voice call with ' + call.peerName, 'Connecting audio…');
+    await sendCallSignalTo(call.conversationId, call.peerId, call.id, 'answer', { answer: pc.localDescription });
+    call.signalReady = true;
+    await flushLocalCallCandidates(call);
+  } catch (error) {
+    await endVoiceCall(true);
+    throw new Error(error && error.name === 'NotAllowedError' ? 'Allow microphone access to answer the call.' : (error.message || 'Could not answer this call.'));
+  }
+}
+async function declineVoiceCall() {
+  const call = activeCall;
+  if (!call) return;
+  await sendCallSignalTo(call.conversationId, call.peerId, call.id, 'reject', {}).catch(() => {});
+  await endVoiceCall(false);
+}
+async function handleCallSignal(signal) {
+  if (!signal || !signal.signal_type) return;
+  if (signal.signal_type === 'offer') {
+    if (activeCall) {
+      await sendCallSignalTo(signal.conversation_id, signal.sender_id, signal.call_id, 'reject', { reason: 'busy' }).catch(() => {});
+      return;
+    }
+    const conversation = conversations.find(c => c.id === signal.conversation_id && c.kind === 'direct');
+    if (!conversation) {
+      await sendCallSignalTo(signal.conversation_id, signal.sender_id, signal.call_id, 'reject', { reason: 'unavailable' }).catch(() => {});
+      return;
+    }
+    const peer = conversation.peer || {};
+    const call = {
+      id: signal.call_id, conversationId: signal.conversation_id, peerId: signal.sender_id,
+      peerName: peer.display_name || peer.username || 'Clines user', direction: 'incoming',
+      pc: null, localStream: null, localCandidates: [], remoteCandidates: [], signalReady: false,
+      offer: signal.payload && signal.payload.offer
+    };
+    if (!call.offer) return;
+    activeCall = call;
+    pendingIncomingCall = call;
+    showIncomingCallModal(call);
+    return;
+  }
+  const call = activeCall;
+  if (!call || call.id !== signal.call_id || call.conversationId !== signal.conversation_id) return;
+  if (signal.signal_type === 'candidate' && signal.payload && signal.payload.candidate) {
+    if (call.pc && call.pc.remoteDescription) {
+      try { await call.pc.addIceCandidate(signal.payload.candidate); }
+      catch (error) { console.warn('[Clines call] Skipped remote ICE candidate:', error.message); }
+    } else call.remoteCandidates.push(signal.payload.candidate);
+  } else if (signal.signal_type === 'answer' && call.direction === 'outgoing' && signal.payload && signal.payload.answer) {
+    try {
+      await call.pc.setRemoteDescription(signal.payload.answer);
+      await flushRemoteCallCandidates(call);
+      setCallStatus('Connected · negotiating audio…');
+    } catch (error) {
+      toast('Call connection failed', error.message || 'Try again.', true);
+      await endVoiceCall(true);
+    }
+  } else if (signal.signal_type === 'reject') {
+    await endVoiceCall(false);
+    toast('Call declined', call.peerName + ' did not accept the call.');
+  } else if (signal.signal_type === 'end') {
+    await endVoiceCall(false);
+    toast('Call ended', 'The other person ended the call.');
+  }
+}
+async function pollCallSignals() {
+  if (callSignalPollBusy || !user || !db || document.hidden) return;
+  callSignalPollBusy = true;
+  try {
+    const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data, error } = await db.from('flock_call_signals').select('id,conversation_id,sender_id,recipient_id,call_id,signal_type,payload,created_at')
+      .eq('recipient_id', user.id).gte('created_at', since).order('created_at', { ascending: true }).limit(100);
+    if (error) throw error;
+    for (const signal of data || []) {
+      if (processedCallSignalIds.has(signal.id)) continue;
+      processedCallSignalIds.add(signal.id);
+      try { await handleCallSignal(signal); }
+      catch (error) { console.warn('[Clines call] Signal handler failed:', error.message); }
+      await db.from('flock_call_signals').delete().eq('id', signal.id).eq('recipient_id', user.id);
+    }
+    if (processedCallSignalIds.size > 500) processedCallSignalIds.clear();
+  } catch (error) {
+    console.warn('[Clines call] Signal polling paused:', error && error.message ? error.message : 'network error');
+  } finally { callSignalPollBusy = false; }
+}
+function startCallSignalPolling() {
+  if (callSignalPoller) clearInterval(callSignalPoller);
+  callSignalPoller = setInterval(() => pollCallSignals().catch(() => {}), 1000);
+  pollCallSignals().catch(() => {});
+}
+async function endVoiceCall(notifyPeer) {
+  const call = activeCall;
+  activeCall = null;
+  pendingIncomingCall = null;
+  if (call && notifyPeer) sendCallSignalTo(call.conversationId, call.peerId, call.id, 'end', {}).catch(() => {});
+  if (call && call.pc) {
+    try { call.pc.onicecandidate = null; call.pc.ontrack = null; call.pc.close(); } catch {}
+  }
+  if (call && call.localStream) call.localStream.getTracks().forEach(track => track.stop());
+  if (activeMediaStream) { activeMediaStream.getTracks().forEach(track => track.stop()); activeMediaStream = null; }
+  const audio = $('remoteCallAudio');
+  if (audio) { audio.pause(); audio.srcObject = null; }
+  if (!$('modalBackdrop').hidden && (String($('modalKicker').textContent).startsWith('CLINES / VOICE CALL') || String($('modalKicker').textContent).startsWith('CLINES / INCOMING CALL'))) {
+    modalCancelHandler = null;
+    closeModal();
+  }
+}
+
 function closeSidebarForMobile() {
   $('appScreen').classList.add('chat-open');
 }
@@ -1512,6 +1949,9 @@ function setSidebarTab(tab) {
 async function signOut() {
   if (conversationPoller) clearInterval(conversationPoller);
   if (globalPoller) clearInterval(globalPoller);
+  if (callSignalPoller) clearInterval(callSignalPoller);
+  callSignalPoller = null;
+  await endVoiceCall(false).catch(() => {});
   conversationPoller = null;
   globalPoller = null;
   const priorToken = flockSessionToken;
@@ -1531,7 +1971,7 @@ async function signOut() {
   signedUrlCache.clear();
   persistFlockSession('', false);
   showAuthScreen(false);
-  toast('Signed out', 'Your messages remain saved to your Flock account.');
+  toast('Signed out', 'Your messages remain saved to your Clines account.');
 }
 function bindEvents() {
   $('showSignInTab').addEventListener('click', () => showAuthScreen(false));
@@ -1543,7 +1983,7 @@ function bindEvents() {
   }));
   $('signInForm').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!db) { feedback('authFeedback','Flock is not configured. Check your connection and try again.',true); return; }
+    if (!db) { feedback('authFeedback','Clines is not configured. Check your connection and try again.',true); return; }
     const button = $('signInForm').querySelector('[type="submit"]');
     button.disabled = true;
     feedback('authFeedback','Signing you in securely…');
@@ -1556,14 +1996,14 @@ function bindEvents() {
       persistFlockSession(result.sessionToken, result.remember);
       user = result.user;
       await enterApp();
-      toast('Welcome back', 'Your Flock account is ready.');
+      toast('Welcome back', 'Your Clines account is ready.');
     } catch (error) {
       feedback('authFeedback', error.message || 'Could not sign in. Check your username and password.', true);
     } finally { button.disabled = false; }
   });
   $('signUpForm').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!db) { feedback('authFeedback','Flock is not configured. Check your connection and try again.',true); return; }
+    if (!db) { feedback('authFeedback','Clines is not configured. Check your connection and try again.',true); return; }
     const username = $('signUpUsername').value.trim().toLowerCase();
     const password = $('signUpPassword').value;
     const confirm = $('signUpConfirm').value;
@@ -1572,7 +2012,7 @@ function bindEvents() {
     if (password !== confirm) { feedback('authFeedback','The passwords do not match.',true); return; }
     const button = $('signUpForm').querySelector('[type="submit"]');
     button.disabled = true;
-    feedback('authFeedback','Creating your private Flock account…');
+    feedback('authFeedback','Creating your private Clines account…');
     try {
       const result = await flockAuth('register', {
         username, password, displayName: username, remember: $('signUpRememberMe').checked
@@ -1580,9 +2020,9 @@ function bindEvents() {
       persistFlockSession(result.sessionToken, result.remember);
       user = result.user;
       await enterApp();
-      toast('Welcome to Flock', 'Your account and 10-digit friend code are ready.');
+      toast('Welcome to Clines', 'Your account and 10-digit friend code are ready.');
     } catch (error) {
-      feedback('authFeedback', error.message || 'Could not create your Flock account. Try again.', true);
+      feedback('authFeedback', error.message || 'Could not create your Clines account. Try again.', true);
     } finally { button.disabled = false; }
   });
 
@@ -1628,6 +2068,9 @@ function bindEvents() {
   });
   $('profileOpenBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
   $('openSettingsBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
+  $('openBlockedUsersBtn').addEventListener('click', () => openBlockedUsers().catch(err => toast('Could not load blocked users', err.message, true)));
+  $('openAboutNewBtn').addEventListener('click', openAboutNew);
+  $('voiceCallBtn').addEventListener('click', () => startVoiceCall().catch(err => toast('Could not start call', err.message || 'Try again.', true)));
   $('myStatusBtn').addEventListener('click', () => openStatuses().catch(err => toast('Could not load moments', err.message, true)));
   $('openStatusesBtn').addEventListener('click', () => openStatuses().catch(err => toast('Could not load moments', err.message, true)));
   $('openGroupsBtn').addEventListener('click', () => createGroup().catch(err => toast('Could not create group', err.message, true)));
@@ -1637,15 +2080,23 @@ function bindEvents() {
   $('chatHeaderAvatarBtn').addEventListener('click', openConversationDetails);
   $('chatDetailsBtn').addEventListener('click', () => Promise.resolve(openConversationDetails()).catch(err => toast('Could not load details', err.message, true)));
   $('addPeopleBtn').addEventListener('click', () => addPeopleToGroup().catch(err => toast('Could not add people', err.message, true)));
-  $('chatMoreBtn').addEventListener('click', () => showModal({
-    kicker:'FLOCK / CONVERSATION', title:'A few chat options', description:'Your conversation, your controls.',
-    body:'<button id="moreChatDetails" class="modal-option" type="button">ⓘ Conversation details</button><button id="moreAddFriend" class="modal-option" type="button">＋ Add a friend</button>' + (activeConversation && activeConversation.kind === 'group' ? '<button id="moreGroupSettings" class="modal-option" type="button">⚙ Group settings</button>' : ''),
-    hidePrimary:true
-  }) || setTimeout(() => {
-    if ($('moreChatDetails')) $('moreChatDetails').onclick = () => { closeModal(); openConversationDetails(); };
-    if ($('moreAddFriend')) $('moreAddFriend').onclick = () => { closeModal(); openAddFriend(); };
+  $('chatMoreBtn').addEventListener('click', () => {
+    if (!activeConversation) return;
+    const isGroup = activeConversation.kind === 'group';
+    const peer = activeConversation.peer;
+    const rows = '<button id="moreChatDetails" class="modal-option" type="button">ⓘ Conversation details</button>' +
+      '<button id="moreAddFriend" class="modal-option" type="button">＋ Add a friend</button>' +
+      (isGroup ? '<button id="moreGroupSettings" class="modal-option" type="button">⚙ Group settings</button>' :
+       '<button id="moreVoiceCall" class="modal-option" type="button">☎ Start voice call</button>' +
+       (peer ? '<button id="moreBlockUser" class="modal-option danger-option" type="button">⊘ Block @' + escapeHtml(peer.username) + '</button>' : ''));
+    showModal({ kicker:'CLINES / CONVERSATION', title:'A few chat options', description:'Your conversation, your controls.', body:rows, hidePrimary:true });
+    $('moreChatDetails').onclick = () => { closeModal(); openConversationDetails(); };
+    $('moreAddFriend').onclick = () => { closeModal(); openAddFriend(); };
     if ($('moreGroupSettings')) $('moreGroupSettings').onclick = () => { closeModal(); showGroupDetails().catch(err => toast('Could not load group details', err.message, true)); };
-  },0));
+    if ($('moreVoiceCall')) $('moreVoiceCall').onclick = () => { closeModal(); startVoiceCall().catch(err => toast('Could not start call', err.message || 'Try again.', true)); };
+    if ($('moreBlockUser') && peer) $('moreBlockUser').onclick = () => { closeModal(); confirmBlockUser(peer.id, peer.username); };
+  });
+
   $('attachImageBtn').addEventListener('click', () => $('mediaFileInput').click());
   $('mediaFileInput').addEventListener('change', async event => {
     const file = event.target.files && event.target.files[0];
@@ -1718,7 +2169,7 @@ async function enterApp() {
     await Promise.all([refreshFriends(), refreshConversations()]);
     if (window.location.hash.includes('type=recovery')) openPasswordRecovery();
   } catch (error) {
-    toast('Could not load your Flock data', error.message || 'Try refreshing.', true);
+    toast('Could not load your Clines data', error.message || 'Try refreshing.', true);
   }
   subscribeGlobal();
 }
@@ -1732,12 +2183,13 @@ function subscribeGlobal() {
       await Promise.all([refreshFriends(), refreshConversations({ quiet: true })]);
       if (Date.now() - lastStatusLoad > 30000) $('statusCountBadge').textContent = 'NEW';
     } catch (error) {
-      console.warn('[Flock] Account sync paused:', error && error.message ? error.message : 'network error');
+      console.warn('[Clines] Account sync paused:', error && error.message ? error.message : 'network error');
     } finally {
       globalPollBusy = false;
     }
   };
   globalPoller = setInterval(poll, 10000);
+  startCallSignalPolling();
 }
 
 async function initialize() {
@@ -1749,7 +2201,7 @@ async function initialize() {
   }
   if (!db) {
     showAuthScreen(false);
-    feedback('authFeedback','Flock cannot connect to its cloud service. Check src/flock-config.js and reload.',true);
+    feedback('authFeedback','Clines cannot connect to its cloud service. Check src/flock-config.js and reload.',true);
     return;
   }
   const savedToken = getSavedFlockSession();
@@ -1768,11 +2220,11 @@ async function initialize() {
     user = null;
     profile = null;
     showAuthScreen(false);
-    feedback('authFeedback','Your saved Flock session has expired. Please sign in again.',false);
+    feedback('authFeedback','Your saved Clines session has expired. Please sign in again.',false);
   }
 }
 initialize().catch(error=> {
-  console.error('[Flock] Initialization error',error);
+  console.error('[Clines] Initialization error',error);
   showAuthScreen(false);
-  feedback('authFeedback',error.message || 'Flock could not start.',true);
+  feedback('authFeedback',error.message || 'Clines could not start.',true);
 });
