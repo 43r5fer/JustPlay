@@ -19,8 +19,7 @@ Clines is a cross-platform messenger for Windows, Android and the web. Accounts 
 ## Downloads and release
 
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines-Setup.exe
-- Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
-- Direct-download Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
+- Android APK for direct sideloading: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Landing page: https://43r5fer.github.io/JustPlay/
 - Source code: https://github.com/43r5fer/JustPlay
@@ -42,6 +41,7 @@ For a fresh project, run these scripts in order in the Supabase SQL Editor:
 1. supabase/setup.sql — Clines tables, groups, messages, RLS and storage.
 2. supabase/custom_auth.sql — detach Clines profiles from auth.users, create custom credentials/sessions, and update RLS to validate Clines session headers.
 3. supabase/clines_v1_0_4.sql — add blocked-user management, group disbanding, call signaling, and block-aware access rules.
+4. supabase/clines_v1_0_4_harden_helpers.sql — keep internal block-check functions in the private schema and add indexes for call signaling.
 
 For the connected production project, the schema and custom-auth migration have already been applied. The flock-auth Edge Function is deployed. Its service-role key is managed by Supabase, not included in the repository.
 
