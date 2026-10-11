@@ -106,7 +106,7 @@ jobs:
               echo "FLOCK_RELEASE_SIGNING_READY=true"
               echo "FLOCK_ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/android/app/flock-upload.jks"
             } >> "$GITHUB_ENV"
-            echo "Release signing is configured. A signed AAB and APK will be built."
+            echo "Release signing is configured. A release-signed APK will be built."
           else
             echo "FLOCK_RELEASE_SIGNING_READY=false" >> "$GITHUB_ENV"
             echo "::warning::Android release signing secrets are missing. A debug APK will be built; the Play Store App Bundle will be skipped."
