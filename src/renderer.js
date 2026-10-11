@@ -334,23 +334,10 @@ function wireDesktopUpdates() {
 }
 let lastMobileUpdateVersion = '';
 let lastMobileUpdateCheck = 0;
-let playUpdateMonitor = null;
 function mobileCapacitorPlatform() {
   const cap = window.Capacitor;
   if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return '';
   return typeof cap.getPlatform === 'function' ? cap.getPlatform() : '';
-}
-function getFlockUpdatesPlugin() {
-  const cap = window.Capacitor;
-  if (cap && cap.Plugins && cap.Plugins.FlockUpdates) return cap.Plugins.FlockUpdates;
-  if (cap && typeof cap.nativePromise === 'function') {
-    return {
-      getInfo: () => cap.nativePromise('FlockUpdates', 'getInfo', {}),
-      startUpdate: options => cap.nativePromise('FlockUpdates', 'startUpdate', options || {}),
-      completeUpdate: () => cap.nativePromise('FlockUpdates', 'completeUpdate', {})
-    };
-  }
-  return null;
 }
 function compareVersions(left, right) {
   const parse = value => {
@@ -361,122 +348,37 @@ function compareVersions(left, right) {
   const a = parse(left);
   const b = parse(right);
   if (!a || !b) return 0;
-  for (let i = 0; i < 3; i++) {
-    if (a.parts[i] !== b.parts[i]) return a.parts[i] > b.parts[i] ? 1 : -1;
-  }
+  for (let i = 0; i < 3; i++) if (a.parts[i] !== b.parts[i]) return a.parts[i] > b.parts[i] ? 1 : -1;
   if (a.pre === b.pre) return 0;
   if (!a.pre) return 1;
   if (!b.pre) return -1;
   return a.pre.localeCompare(b.pre);
 }
 function versionFromRelease(release) {
-  const candidates = [release && release.tag_name, release && release.name];
-  for (const candidate of candidates) {
+  for (const candidate of [release && release.tag_name, release && release.name]) {
     const match = String(candidate || '').match(/(?:^|[^0-9])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/i);
     if (match) return match[1];
   }
   return '';
 }
 function openExternalFlockUrl(url) {
-  if (!url || !/^https:\/\/|^market:\/\//i.test(url)) throw new Error('The update link is not valid.');
-  const cap = window.Capacitor;
-  if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
+  if (!url || !/^https:\/\//i.test(url)) throw new Error('The update link is not valid.');
+  if (mobileCapacitorPlatform() === 'android') {
     window.open(url, '_system');
   } else {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
-}
-function showPlayUpdateReady(plugin, info) {
-  const availableCode = Number(info && info.availableVersionCode || 0);
-  const key = 'play:' + availableCode;
-  if (lastMobileUpdateVersion === key) return;
-  lastMobileUpdateVersion = key;
-  const canUseFlexible = Boolean(info && info.flexibleAllowed);
-  showModal({
-    kicker: 'FLOCK / GOOGLE PLAY UPDATE',
-    title: 'A new Flock is ready.',
-    description: 'Google Play has an update for Flock. You can keep your cloud messages while the update installs.',
-    body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Google Play handles the signed download and installation for this app.</p></div>',
-    primary: canUseFlexible ? 'Start update' : 'Update now',
-    onPrimary: async () => {
-      try {
-        await plugin.startUpdate({ mode: canUseFlexible ? 'flexible' : 'immediate' });
-        closeModal();
-        toast('Google Play update started', canUseFlexible ? 'Flock will download the update in the background.' : 'Follow the Google Play update screen.');
-        if (canUseFlexible) startPlayUpdateMonitor(plugin);
-      } catch (error) {
-        closeModal();
-        toast('Could not start Google Play update', error.message || 'Open Flock in Google Play to update.', true);
-      }
-    }
-  });
-}
-function startPlayUpdateMonitor(plugin) {
-  if (playUpdateMonitor) clearInterval(playUpdateMonitor);
-  playUpdateMonitor = setInterval(async () => {
-    try {
-      const info = await plugin.getInfo();
-      if (info && info.downloaded) {
-        clearInterval(playUpdateMonitor);
-        playUpdateMonitor = null;
-        const key = 'downloaded:' + Number(info.availableVersionCode || 0);
-        if (lastMobileUpdateVersion === key) return;
-        lastMobileUpdateVersion = key;
-        showModal({
-          kicker: 'FLOCK / UPDATE READY',
-          title: 'Finish installing Flock.',
-          description: 'Google Play has downloaded the update. Finish the installation to start using it.',
-          body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Google Play will finish installing the signed update and restart Flock.</p></div>',
-          primary: 'Complete update',
-          onPrimary: async () => {
-            await plugin.completeUpdate();
-            closeModal();
-          }
-        });
-      }
-    } catch {}
-  }, 2500);
 }
 async function checkMobileUpdate(options) {
   if (mobileCapacitorPlatform() !== 'android') return;
   const now = Date.now();
   if (!(options && options.force) && now - lastMobileUpdateCheck < 5 * 60 * 1000) return;
   lastMobileUpdateCheck = now;
-  const plugin = getFlockUpdatesPlugin();
-  let playInfo = null;
-  if (plugin && typeof plugin.getInfo === 'function') {
-    try {
-      playInfo = await plugin.getInfo();
-      if (playInfo && playInfo.downloaded) {
-        startPlayUpdateMonitor(plugin);
-        const key = 'downloaded:' + Number(playInfo.availableVersionCode || 0);
-        if (lastMobileUpdateVersion !== key) {
-          lastMobileUpdateVersion = key;
-          showModal({
-            kicker: 'FLOCK / UPDATE READY',
-            title: 'Finish installing Flock.',
-            description: 'Google Play has already downloaded an update for you.',
-            body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Complete the installation in Google Play to finish updating Flock.</p></div>',
-            primary: 'Complete update',
-            onPrimary: async () => { await plugin.completeUpdate(); closeModal(); }
-          });
-        }
-        return;
-      }
-      if (playInfo && playInfo.updateAvailable) {
-        showPlayUpdateReady(plugin, playInfo);
-        return;
-      }
-    } catch {
-      /* The app may have been installed outside Google Play. The release feed is the fallback. */
-    }
-  }
   const runtime = window.FLOCK_RUNTIME || {};
   const currentVersion = String(runtime.version || '0.0.0');
   const ownerRepo = String((window.FLOCK_CONFIG || {}).githubRepo || '43r5fer/JustPlay');
-  const apiUrl = 'https://api.github.com/repos/' + ownerRepo + '/releases/latest';
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch('https://api.github.com/repos/' + ownerRepo + '/releases/latest', {
       headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       cache: 'no-store'
     });
@@ -487,43 +389,28 @@ async function checkMobileUpdate(options) {
     const promptKey = 'github:' + latestVersion;
     if (lastMobileUpdateVersion === promptKey) return;
     lastMobileUpdateVersion = promptKey;
-    const cfg = window.FLOCK_CONFIG || {};
-    const playStoreInstall = Boolean(playInfo && (playInfo.playStoreInstall || playInfo.installerPackageName === 'com.android.vending'));
-    const playStoreUrl = String(cfg.playStoreUrl || '').trim() ||
-      ('https://play.google.com/store/apps/details?id=' + encodeURIComponent(cfg.androidPackageId || 'com.flock.messaging'));
+    const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'Flock.apk') : null;
     const releaseSigned = Boolean(runtime.releaseSigned);
-    let targetUrl;
-    let buttonLabel;
-    let description;
-    if (playStoreInstall) {
-      targetUrl = playStoreUrl;
-      buttonLabel = 'Open Google Play';
-      description = 'Flock ' + latestVersion + ' is newer than this installed version. Open Google Play to update when the release is available there.';
-    } else if (releaseSigned) {
-      targetUrl = 'https://github.com/' + ownerRepo + '/releases/latest/download/Flock.apk';
-      buttonLabel = 'Download update';
-      description = 'Flock ' + latestVersion + ' is available. Android will download the APK; tap the downloaded file and approve installation when Android asks.';
-    } else {
-      targetUrl = release.html_url || ('https://github.com/' + ownerRepo + '/releases/latest');
-      buttonLabel = 'View update';
-      description = 'Flock ' + latestVersion + ' is available. This testing build has no configured stable release-signing key, so direct APK installation may require uninstalling the test build first.';
-    }
+    const targetUrl = releaseSigned && apk && apk.browser_download_url
+      ? apk.browser_download_url
+      : (release.html_url || ('https://github.com/' + ownerRepo + '/releases/latest'));
     showModal({
       kicker: 'FLOCK / UPDATE AVAILABLE',
-      title: 'Meet the new Flock.',
-      description,
-      body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Version ' + escapeHtml(latestVersion) + ' is available. Your account and cloud conversations stay in Supabase.</p></div>',
-      primary: buttonLabel,
+      title: 'A new Flock is ready.',
+      description: releaseSigned
+        ? 'Flock ' + latestVersion + ' is ready to download. Android will ask you to approve the install.'
+        : 'Flock ' + latestVersion + ' is available. This APK was built without the permanent release-signing key, so open the release page and follow its installation instructions.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Your account, friends and cloud conversations are stored online and will remain available after an update.</p></div>',
+      primary: releaseSigned ? 'Download update' : 'View update',
       onPrimary: async () => {
         closeModal();
         openExternalFlockUrl(targetUrl);
-        if (playStoreInstall) toast('Opening Google Play', 'Install the latest Flock version from the store.');
-        else if (releaseSigned) toast('Downloading Flock update', 'After the APK finishes downloading, approve installation in Android.');
-        else toast('Opening Flock release', 'Follow the release page instructions for this testing build.');
+        toast(releaseSigned ? 'Downloading Flock update' : 'Opening Flock release',
+          releaseSigned ? 'After the APK downloads, approve installation in Android.' : 'Follow the installation instructions on the release page.');
       }
     });
   } catch {
-    /* Do not interrupt sign-in if the release feed is temporarily unavailable. */
+    /* A temporary release-feed failure must not interrupt sign-in or messaging. */
   }
 }
 function wireMobileUpdates() {
