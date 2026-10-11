@@ -3,7 +3,7 @@
   "version": "1.0.4",
   "description": "Clines — cross-platform messaging with custom sessions and automatic updates",
   "main": "electron/main.cjs",
-  "author": "Flock contributors",
+  "author": "Clines contributors",
   "license": "MIT",
   "scripts": {
     "dev": "electron .",
