@@ -1,31 +1,31 @@
-# Flock — your people, in one place
+# Clines — your people, in one place
 
-Flock is a cross-platform messenger for Windows, Android and the web. Accounts use Flock's own username/password login; chat profiles, friend codes, messages, groups and media sync through the connected cloud database.
+Clines is a cross-platform messenger for Windows, Android and the web. Accounts use Clines's own username/password login; chat profiles, friend codes, messages, groups and media sync through the connected cloud database.
 
 ## What's included
 
-- Custom Flock username/password registration and sign-in. No Supabase-hosted login page or Supabase Auth account is needed.
+- Custom Clines username/password registration and sign-in. No Supabase-hosted login page or Supabase Auth account is needed.
 - Passwords are hashed on the server using PBKDF2-SHA256 with a random per-account salt. Raw passwords are never stored.
 - A Remember me option stores a random revocable session token on the device. Remembered sessions last up to 30 days; temporary sessions last up to one day. Signing out revokes the current token.
-- Account rate limiting, session revocation, change-password flow and server-validated Flock sessions.
+- Account rate limiting, session revocation, change-password flow and server-validated Clines sessions.
 - Unique 10-digit friend codes and friend requests.
 - Cloud-synced direct and group messages, message editing/deletion, replies, reactions and read ticks.
-- Photos, videos, voice messages, recorded video notes, files, YouTube sharing and 24-hour status posts.
+- Photos, videos, voice messages, recorded video notes, files, direct voice calls, group-member moderation, block/unblock controls, YouTube sharing and 24-hour status posts.
 - Profile image, display name, bio and photo/video chat wallpapers.
-- Private storage, scoped row-level policies and a Flock-session identity check at the database boundary.
+- Private storage, scoped row-level policies and a Clines-session identity check at the database boundary.
 - Windows installer with automatic update prompts and a responsive browser PWA.
-- Direct Android APK builds with update notices from the Flock GitHub release feed.
+- Direct Android APK builds with update notices from the Clines GitHub release feed.
 
 ## Downloads and release
 
-- Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
-- Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
-- Direct-download Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
+- Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines-Setup.exe
+- Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
+- Direct-download Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Landing page: https://43r5fer.github.io/JustPlay/
 - Source code: https://github.com/43r5fer/JustPlay
 
-## How custom Flock login works
+## How custom Clines login works
 
 1. The client sends a username/password only to the flock-auth Edge Function over HTTPS.
 2. The function hashes/verifies passwords using PBKDF2-SHA256 and creates a 256-bit random session token.
@@ -39,8 +39,9 @@ The Supabase publishable key in src/flock-config.js is intentionally client-visi
 
 For a fresh project, run these scripts in order in the Supabase SQL Editor:
 
-1. supabase/setup.sql — Flock tables, groups, messages, RLS and storage.
-2. supabase/custom_auth.sql — detach Flock profiles from auth.users, create custom credentials/sessions, and update RLS to validate Flock session headers.
+1. supabase/setup.sql — Clines tables, groups, messages, RLS and storage.
+2. supabase/custom_auth.sql — detach Clines profiles from auth.users, create custom credentials/sessions, and update RLS to validate Clines session headers.
+3. supabase/clines_v1_0_4.sql — add blocked-user management, group disbanding, call signaling, and block-aware access rules.
 
 For the connected production project, the schema and custom-auth migration have already been applied. The flock-auth Edge Function is deployed. Its service-role key is managed by Supabase, not included in the repository.
 
@@ -56,7 +57,7 @@ npm run dist:win
 node scripts/write-update-manifest.cjs
 ~~~
 
-Output: dist/Flock-Setup.exe plus dist/latest.yml.
+Output: dist/Clines-Setup.exe plus dist/latest.yml.
 
 When a newer Windows release is published, the installed app detects it, prompts Download update, then prompts Restart and update when ready.
 
@@ -74,7 +75,7 @@ node scripts/patch-android-manifest.mjs
 node scripts/patch-android-release.mjs
 ~~~
 
-The release script sets package version/versionCode and target API 36. Flock is distributed directly as an APK; no app-store account is required.
+The release script sets package version/versionCode and target API 36. Clines is distributed directly as an APK; no app-store account is required.
 
 ### Direct APK signing and updates
 
@@ -85,7 +86,7 @@ For reliable in-place APK updates, sign every APK with the same private release 
 - ANDROID_KEY_ALIAS — flock-upload.
 - ANDROID_KEY_PASSWORD — the value in the matching key-password text file.
 
-The release workflow builds only Flock.apk for direct distribution; no app-store bundle is produced. If those secrets are missing, the workflow still creates a debug-signed APK that runs, but future in-place updates may require uninstalling the old APK first. The current v1.0.3 APK was built before a persistent release key was configured; migrating from it to the first release-signed APK requires a one-time uninstall/reinstall. Your cloud account and messages are stored remotely, so sign back in after reinstalling.
+The release workflow builds only Clines.apk for direct distribution; no app-store bundle is produced. If those secrets are missing, the workflow still creates a debug-signed APK that runs, but future in-place updates may require uninstalling the old APK first. The v1.0.3 APK was built before a persistent release key was configured; migrating from it to the first release-signed APK requires a one-time uninstall/reinstall. Your cloud account and messages are stored remotely, so sign back in after reinstalling.
 
 The GitHub project cannot use your keystore until you put these values into Actions secrets. Never share the keystore/passwords publicly.
  
@@ -94,13 +95,13 @@ The GitHub project cannot use your keystore until you put these values into Acti
 - The web app is served from /app/. Supported browsers can offer Install app / Add to Home Screen.
 - Message and media sync require an internet connection.
 - Microphone and camera permissions are needed for voice and video notes.
-- Flock has not undergone a formal security audit and is not an end-to-end encrypted messenger. Cloud row access is restricted by custom sessions, RLS and private media controls.
+- Clines has not undergone a formal security audit and is not an end-to-end encrypted messenger. Cloud row access is restricted by custom sessions, RLS and private media controls.
 - The username/password system does not yet provide self-service recovery for a forgotten password. Users should keep passwords safe; do not share them with anyone.
 
 ## Code map
 
-- src/index.html, src/styles.css — responsive UI and Flock login screens
-- src/renderer.js — custom Flock sessions, chat, media, polling sync and update prompts
+- src/index.html, src/styles.css — responsive UI and Clines login screens
+- src/renderer.js — custom Clines sessions, chat, media, polling sync and update prompts
 - src/flock-config.js, src/flock-runtime.js — public project config and version
 - supabase/functions/flock-auth/index.ts — password hashing, login, registration and sessions
 - supabase/setup.sql, supabase/custom_auth.sql — schema and session-based RLS
@@ -108,4 +109,14 @@ The GitHub project cannot use your keystore until you put these values into Acti
 - scripts/patch-android-release.mjs — Android API level, versioning and direct APK signing
 - .github/workflows/build-flock.yml — Windows/Android CI and release artifacts
 
-Flock is an independent community messenger.
+Clines is an independent community messenger.
+
+
+## Clines v1.0.4 notes
+
+- The product display name is now **Clines**; the Android application ID remains `com.flock.messaging` to preserve the installed app identity.
+- **About New** lists the changes in v1.0.4.
+- Group owners can disband their group; permitted admins can remove members, and non-owners can leave.
+- Users can block and unblock accounts. Blocking removes the friendship, blocks direct chat access and prevents voice calls.
+- Direct voice calls use WebRTC with STUN servers. Some networks require a TURN relay that is not configured in this release, so calling may fail on restrictive NAT/firewall networks.
+- Voice/video notes are pinned to the conversation where recording began and now use recorder-reported MIME types, with extra stream cleanup to reduce failed uploads.
