@@ -12,7 +12,7 @@
 
 ### Release notes
 
-- The Play Store App Bundle is conditional on four protected Android upload-signing GitHub secrets. When absent, CI builds a test APK and does not pretend it is a store-ready bundle.
+- A persistent Android signing key is needed for in-place updates between APK releases; configure the protected signing secrets before the first release-signed update.
 - Flock isn't formally audited and doesn't claim end-to-end encryption.
 - Self-service forgotten-password recovery is not enabled yet; signed-in users can change their password from profile settings.
 
