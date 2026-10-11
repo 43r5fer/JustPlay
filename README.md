@@ -74,7 +74,7 @@ node scripts/patch-android-manifest.mjs
 node scripts/patch-android-release.mjs
 ~~~
 
-The release script sets package version/versionCode and target API 36. Flock is distributed directly as an APK; it does not need to be published on Google Play.
+The release script sets package version/versionCode and target API 36. Flock is distributed directly as an APK; no app-store account is required.
 
 ### Direct APK signing and updates
 
