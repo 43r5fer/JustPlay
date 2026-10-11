@@ -18,7 +18,7 @@
 
 ## v1.0.2 — Android update and signing groundwork
 
-- Added desktop update prompts, native Google Play in-app update bridge, conditional Android signing configuration and target API 36.
+- Added desktop update prompts, conditional Android APK signing and target API 36.
 
 ## v1.0.1 — Friend-code privacy hotfix
 
