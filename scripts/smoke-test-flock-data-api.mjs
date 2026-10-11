@@ -10,6 +10,7 @@ if (!supabaseUrl || !publishableKey) throw new Error('Flock public API configura
 const username = 'qa' + Date.now().toString(36) + randomBytes(3).toString('hex');
 const password = 'Test-' + randomBytes(18).toString('base64url');
 let profileId = '';
+let secondProfileId = '';
 let tokens = [];
 let uploadedPath = '';
 const baseHeaders = { apikey: publishableKey, Authorization: 'Bearer ' + publishableKey };
@@ -56,6 +57,15 @@ try {
   tokens.push(login.result.sessionToken);
   const token = login.result.sessionToken;
 
+  const secondUsername = 'qa' + Date.now().toString(36) + randomBytes(3).toString('hex');
+  const secondPassword = 'Test-' + randomBytes(18).toString('base64url');
+  const registration2 = await functionRequest('register', { username: secondUsername, password: secondPassword, displayName: secondUsername, remember: true });
+  await ensureOk(registration2, 'Second-account registration for friend lookup');
+  secondProfileId = String(registration2.result.user?.id || '');
+  const secondFriendCode = String(registration2.result.user?.friend_code || '');
+  if (!/^\d{10}$/.test(secondFriendCode) || !secondProfileId || secondProfileId === profileId) throw new Error('Second profile did not receive a valid friend code.');
+  tokens.push(registration2.result.sessionToken);
+
   const profile = await dataRequest('/rest/v1/flock_profiles?id=eq.' + encodeURIComponent(profileId) + '&select=id,username,friend_code', { token });
   await ensureOk(profile, 'Profile SELECT through RLS');
   if (!Array.isArray(profile.result) || profile.result.length !== 1 || profile.result[0].id !== profileId) {
@@ -69,11 +79,11 @@ try {
   }
 
   const friend = await dataRequest('/rest/v1/rpc/flock_find_friend_code', {
-    method: 'POST', token, body: { p_friend_code: friendCode },
+    method: 'POST', token, body: { p_friend_code: secondFriendCode },
   });
   await ensureOk(friend, 'Friend-code RPC');
   const friendRows = Array.isArray(friend.result) ? friend.result : [friend.result];
-  if (!friendRows.some(row => row && row.id === profileId)) throw new Error('Friend-code RPC did not return the matching profile.');
+  if (!friendRows.some(row => row && row.id === secondProfileId)) throw new Error('Friend-code RPC did not return the matching friend profile: ' + JSON.stringify(friend.result).slice(0, 500));
 
   uploadedPath = profileId + '/profile/smoke-' + randomBytes(6).toString('hex') + '.txt';
   const objectPath = uploadedPath.split('/').map(encodeURIComponent).join('/');
@@ -105,10 +115,12 @@ try {
   console.log('PRIVATE_MEDIA_UPLOAD_AND_SIGNED_URL=PASS');
   console.log('REMEMBER_ME_AND_LOGOUT=PASS');
   console.log('SMOKE_PROFILE_ID=' + profileId);
+  console.log('SMOKE_SECOND_PROFILE_ID=' + secondProfileId);
 } catch (error) {
   console.error('FLOCK_DATA_API_SMOKE=FAIL');
   console.error(error instanceof Error ? error.message : String(error));
   if (profileId) console.log('SMOKE_PROFILE_ID=' + profileId);
+  if (secondProfileId) console.log('SMOKE_SECOND_PROFILE_ID=' + secondProfileId);
   if (uploadedPath) console.log('SMOKE_MEDIA_PATH=' + uploadedPath);
   process.exitCode = 1;
 }
