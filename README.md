@@ -14,7 +14,7 @@ Flock is a cross-platform messenger for Windows, Android and the web. Accounts u
 - Profile image, display name, bio and photo/video chat wallpapers.
 - Private storage, scoped row-level policies and a Flock-session identity check at the database boundary.
 - Windows installer with automatic update prompts and a responsive browser PWA.
-- Android APK builds and Google Play in-app-update support for Play-installed builds.
+- Direct Android APK builds with update notices from the Flock GitHub release feed.
 
 ## Downloads and release
 
