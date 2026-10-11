@@ -109,7 +109,7 @@ jobs:
             echo "Release signing is configured. A release-signed APK will be built."
           else
             echo "FLOCK_RELEASE_SIGNING_READY=false" >> "$GITHUB_ENV"
-            echo "::warning::Android release signing secrets are missing. A debug APK will be built; the Play Store App Bundle will be skipped."
+            echo "::warning::Android signing secrets are missing. A functional debug-signed APK will be built; future in-place updates may require a reinstall."
           fi
 
       - name: Configure version, API 36 and Google Play update support
