@@ -6,6 +6,7 @@
 - [x] Revocable hashed sessions with Remember me (30 days) and temporary sessions (1 day).
 - [x] Rate limiting for registration, login and password changes.
 - [x] Deployed the Flock auth Edge Function and repaired friend-code generation using integer parsing.
+- [x] Live smoke test passed for registration, 10-digit friend code, login, remembered-session restore and logout; test account cleaned up.
 - [x] Switched Flock database RLS identity checks to validated x-flock-session headers.
 - [x] Added a change-password control in profile settings.
 
@@ -14,7 +15,7 @@
 - [x] Published v1.0.3 with Flock-Setup.exe and Flock.apk.
 - [x] Windows latest.yml manifest and automatic update prompts included.
 - [x] Android release-version check and direct-download update path included.
-- [x] Android build workflow now focuses on APK distribution only; no Play Store AAB is produced.
+- [x] Android build workflow is APK-only for direct distribution.
 - [ ] Add the generated stable Android signing key as protected repository Actions secrets.
 - [ ] Build the first release-signed APK. The existing v1.0.3 APK is debug-signed and needs one uninstall/reinstall transition.
 - [ ] Test login/remember-me and chat/media features on a real Windows PC and Android device.
