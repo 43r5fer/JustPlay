@@ -1,10 +1,11 @@
-name: Build and release Flock for Windows and Android
+name: Build and release Clines for Windows and Android
 
 on:
   push:
     tags:
       - "v*"
       - "flock-v*"
+      - "clines-v*"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +31,7 @@ jobs:
       - name: Validate JavaScript syntax
         run: npm run check
 
-      - name: Build Flock Setup
+      - name: Build Clines Setup
         run: npm run dist:win
 
       - name: Create updater manifest
@@ -39,9 +40,9 @@ jobs:
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: Flock-Windows-Release
+          name: Clines-Windows-Release
           path: |
-            dist/Flock-Setup.exe
+            dist/Clines-Setup.exe
             dist/latest.yml
           if-no-files-found: error
           retention-days: 30
@@ -76,7 +77,7 @@ jobs:
       - name: Install project dependencies
         run: npm install
 
-      - name: Copy shared Flock UI into the mobile app
+      - name: Copy shared Clines UI into the mobile app
         run: npm run mobile:prepare
 
       - name: Generate Capacitor Android project
@@ -126,25 +127,25 @@ jobs:
           cd android
           if [ "$FLOCK_RELEASE_SIGNING_READY" = "true" ]; then
             ./gradlew --no-daemon assembleRelease
-            cp app/build/outputs/apk/release/app-release.apk ../dist/Flock.apk
+            cp app/build/outputs/apk/release/app-release.apk ../dist/Clines.apk
             echo "Built a release-signed sideload APK for direct download."
           else
             ./gradlew --no-daemon assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../dist/Flock.apk
-            echo "::warning::No stable APK signing key configured; Flock.apk is functional but future in-place APK updates may require reinstalling."
+            cp app/build/outputs/apk/debug/app-debug.apk ../dist/Clines.apk
+            echo "::warning::No stable APK signing key configured; Clines.apk is functional but future in-place APK updates may require reinstalling."
           fi
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: Flock-Android-Release
-          path: dist/Flock.apk
+          name: Clines-Android-Release
+          path: dist/Clines.apk
           if-no-files-found: error
           retention-days: 30
 
   release:
-    name: Publish Flock release assets
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/flock-v')
+    name: Publish Clines release assets
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/flock-v') || startsWith(github.ref, 'refs/tags/clines-v')
     needs:
       - windows
       - android
@@ -153,14 +154,14 @@ jobs:
       - name: Download Windows and direct-download APK
         uses: actions/download-artifact@v4
         with:
-          pattern: Flock-*-Release
+          pattern: Clines-*-Release
           path: release-files
           merge-multiple: true
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Flock ${{ github.ref_name }}
+          name: Clines ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: release-files/*

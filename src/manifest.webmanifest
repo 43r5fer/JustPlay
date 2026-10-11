@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Flock — Stay close",
-  "short_name": "Flock",
+  "name": "Clines — Stay close",
+  "short_name": "Clines",
   "description": "Your people, in one place. Global messages, voice notes, videos, groups and moments.",
   "start_url": "./index.html",
   "scope": "./",

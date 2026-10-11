@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Public Supabase browser configuration for Flock.
+ * Public Supabase browser configuration for Clines.
  * The publishable key is designed for client use. Flock authenticates with its own sessions;
  * database row access is validated by the x-flock-session header and RLS.
  * Never place a Supabase service_role/secret key in this file.

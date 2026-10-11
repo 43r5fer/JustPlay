@@ -4,56 +4,56 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111214">
-  <meta name="description" content="Flock — your people, in one place. Real-time messages, voice notes, videos, groups and moments.">
+  <meta name="description" content="Clines — your people, in one place. Real-time messages, voice notes, videos, groups and moments.">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./flock-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
-  <title>Flock — Stay close.</title>
+  <title>Clines — Stay close.</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <section id="authScreen" class="auth-screen">
-    <header class="auth-top"><a class="brand" href="#"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>flock<span class="brand-period">.</span></span></a><span class="privacy-chip"><span class="live-dot"></span> Your world, connected</span></header>
+    <header class="auth-top"><a class="brand" href="#"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>Clines<span class="brand-period">.</span></span></a><span class="privacy-chip"><span class="live-dot"></span> Your world, connected</span></header>
     <main class="auth-grid">
       <div class="auth-story">
         <div class="eyebrow"><span></span> GOOD CONVERSATIONS LIVE HERE</div>
         <h1>Your people.<br><em>One place.</em></h1>
-        <p>Little moments, long voice notes, group plans and all the things you want to share. Flock brings your conversations together—on desktop and mobile.</p>
+        <p>Little moments, long voice notes, group plans and all the things you want to share. Clines brings your conversations together—on desktop and mobile.</p>
         <div class="story-points">
           <div><span class="story-icon">↗</span><div><strong>Talk in real time</strong><small>Messages, voice notes and video moments</small></div></div>
           <div><span class="story-icon">✦</span><div><strong>Your space, your style</strong><small>Custom photos, video wallpapers and statuses</small></div></div>
-          <div><span class="story-icon">⌁</span><div><strong>Here on every device</strong><small>Messages and profile stored in your Flock account</small></div></div>
+          <div><span class="story-icon">⌁</span><div><strong>Here on every device</strong><small>Messages and profile stored in your Clines account</small></div></div>
         </div>
         <div class="auth-art" aria-hidden="true"><div class="art-bubble bubble-one">you coming? ✨</div><div class="art-bubble bubble-two">voice note · 0:18 <span>▮▮▮▮▮▮▮</span></div><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div><div class="art-center"><span>f</span><i>✦</i></div><div class="art-star star-one">✳</div><div class="art-star star-two">✦</div></div>
       </div>
       <section class="auth-card">
         <div class="auth-tabs" role="tablist"><button id="showSignInTab" class="auth-tab active" type="button" role="tab">Sign in</button><button id="showSignUpTab" class="auth-tab" type="button" role="tab">Create account</button></div>
-        <div class="auth-card-heading"><div class="eyebrow"><span></span> WELCOME TO FLOCK</div><h2 id="authHeading">Good to see you.</h2><p id="authSubheading">Sign in and pick up right where you left off.</p></div>
+        <div class="auth-card-heading"><div class="eyebrow"><span></span> WELCOME TO CLINES</div><h2 id="authHeading">Good to see you.</h2><p id="authSubheading">Sign in and pick up right where you left off.</p></div>
         <form id="signInForm" class="auth-form">
-          <label for="signInUsername">Your Flock username</label><input id="signInUsername" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]{3,24}" required placeholder="your_unique_name">
+          <label for="signInUsername">Your Clines username</label><input id="signInUsername" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]{3,24}" required placeholder="your_unique_name">
           <label for="signInPassword">Password</label><div class="password-field"><input id="signInPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Your password"><button type="button" class="reveal-password" data-toggle-password="signInPassword" aria-label="Show password">◉</button></div>
           <label class="remember-row"><input id="rememberMe" type="checkbox" checked><span><strong>Remember me</strong><small>Stay signed in on this device for 30 days.</small></span></label>
-          <button class="button button-primary button-wide" type="submit"><span>Sign in to Flock</span><span class="button-arrow">→</span></button>
+          <button class="button button-primary button-wide" type="submit"><span>Sign in to Clines</span><span class="button-arrow">→</span></button>
         </form>
         <form id="signUpForm" class="auth-form" hidden>
           <label for="signUpUsername">Username</label><input id="signUpUsername" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]{3,24}" required placeholder="your_unique_name">
           <div class="field-hint">3–24 letters, numbers, dots, underscores or hyphens.</div>
           <label for="signUpPassword">Password</label><div class="password-field"><input id="signUpPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="At least 8 characters"><button type="button" class="reveal-password" data-toggle-password="signUpPassword" aria-label="Show password">◉</button></div>
           <label for="signUpConfirm">Confirm password</label><div class="password-field"><input id="signUpConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Type it again"><button type="button" class="reveal-password" data-toggle-password="signUpConfirm" aria-label="Show password">◉</button></div>
-          <label class="remember-row"><input id="signUpRememberMe" type="checkbox" checked><span><strong>Remember me</strong><small>Keep Flock ready when you reopen the app.</small></span></label>
-          <button class="button button-primary button-wide" type="submit"><span>Create my Flock account</span><span class="button-arrow">→</span></button>
+          <label class="remember-row"><input id="signUpRememberMe" type="checkbox" checked><span><strong>Remember me</strong><small>Keep Clines ready when you reopen the app.</small></span></label>
+          <button class="button button-primary button-wide" type="submit"><span>Create my Clines account</span><span class="button-arrow">→</span></button>
           <p class="terms-note">By creating an account, you agree to treat people kindly and not share content you don't have permission to share.</p>
         </form>
         <div id="authFeedback" class="feedback" aria-live="polite" role="status"></div>
-        <div class="auth-footer"><span>✦</span><p>Your Flock account. Your sessions. Your people.</p></div>
+        <div class="auth-footer"><span>✦</span><p>Your Clines account. Your sessions. Your people.</p></div>
       </section>
     </main>
-    <footer class="auth-bottom"><span>FLOCK <b>·</b> BUILT FOR YOUR PEOPLE</span><span>Desktop & mobile</span></footer>
+    <footer class="auth-bottom"><span>CLINES <b>·</b> BUILT FOR YOUR PEOPLE</span><span>Desktop & mobile</span></footer>
   </section>
 
   <section id="appScreen" class="app-shell" hidden>
     <aside class="sidebar">
-      <div class="sidebar-top"><a class="brand" href="#"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>flock<span class="brand-period">.</span></span></a><button id="newChatBtn" class="icon-button new-chat-button" title="New chat">＋</button></div>
+      <div class="sidebar-top"><a class="brand" href="#"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>Clines<span class="brand-period">.</span></span></a><button id="newChatBtn" class="icon-button new-chat-button" title="New chat">＋</button></div>
       <div class="my-status-row"><button id="myStatusBtn" class="my-status-avatar status-ring"><img id="myAvatar" alt="" hidden><span id="myAvatarFallback">F</span><b>＋</b></button><div class="my-status-copy"><strong id="myDisplayName">Your space</strong><span id="myUsername">@username</span></div><button id="profileOpenBtn" class="icon-button profile-menu-button" title="Edit profile">•••</button></div>
       <div class="friend-code-card"><div><span>YOUR FRIEND CODE</span><strong id="friendCodeText">---------- </strong></div><button id="copyFriendCodeBtn" class="copy-code-btn" title="Copy friend code">▢</button></div>
       <div class="sidebar-search"><span>⌕</span><input id="sidebarSearch" type="search" placeholder="Find a conversation"></div>
@@ -64,21 +64,23 @@
         <button id="openStatusesBtn" class="sidebar-action"><span class="side-action-icon">◌</span><span>Moments</span><span id="statusCountBadge" class="small-count">NEW</span></button>
         <button id="openGroupsBtn" class="sidebar-action"><span class="side-action-icon">◉</span><span>Groups</span></button>
         <button id="openSettingsBtn" class="sidebar-action"><span class="side-action-icon">⚙</span><span>Settings & profile</span></button>
+        <button id="openBlockedUsersBtn" class="sidebar-action"><span class="side-action-icon">⊘</span><span>Blocked users</span></button>
+        <button id="openAboutNewBtn" class="sidebar-action"><span class="side-action-icon">✦</span><span>About New</span><span class="small-count">1.0.4</span></button>
         <div class="account-mini"><span id="connectionDot" class="connection-dot"></span><span id="connectionStatus">Connecting…</span><button id="signOutBtn" title="Sign out">↗</button></div>
       </div>
     </aside>
 
     <main class="chat-workspace" id="chatWorkspace">
-      <div class="mobile-chat-top"><button id="mobileBackBtn" class="icon-button" title="Back to chats">←</button><span class="brand small-brand"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>flock<span class="brand-period">.</span></span></span><button id="mobileNewChatBtn" class="icon-button">＋</button></div>
+      <div class="mobile-chat-top"><button id="mobileBackBtn" class="icon-button" title="Back to chats">←</button><span class="brand small-brand"><span class="brand-icon"><i></i><i></i><i></i><i></i></span><span>Clines<span class="brand-period">.</span></span></span><button id="mobileNewChatBtn" class="icon-button">＋</button></div>
       <section id="emptyChat" class="empty-chat">
         <div class="empty-illustration"><div class="empty-orbit"></div><div class="empty-orbit two"></div><div class="empty-logo">f<span>✦</span></div><div class="floating-note note-left">heyyy 👋</div><div class="floating-note note-right">sent you a voice note <b>▮▮▮</b></div></div>
-        <h1>A little closer,<br><em>one message at a time.</em></h1><p>Open a conversation or find a friend to start something good.</p><div class="empty-actions"><button id="emptyAddFriendBtn" class="button button-primary">＋ Add a friend</button><button id="emptyNewGroupBtn" class="button button-soft">Create a group ↗</button></div><span class="empty-footnote">Your messages sync through your Flock account.</span>
+        <h1>A little closer,<br><em>one message at a time.</em></h1><p>Open a conversation or find a friend to start something good.</p><div class="empty-actions"><button id="emptyAddFriendBtn" class="button button-primary">＋ Add a friend</button><button id="emptyNewGroupBtn" class="button button-soft">Create a group ↗</button></div><span class="empty-footnote">Your messages sync through your Clines account.</span>
       </section>
       <section id="chatView" class="chat-view" hidden>
         <header class="chat-header">
           <button id="chatHeaderAvatarBtn" class="chat-person-avatar"><img id="chatHeaderAvatar" alt="" hidden><span id="chatHeaderAvatarFallback">F</span><i id="chatHeaderOnline" class="online-dot"></i></button>
-          <div class="chat-header-info"><strong id="chatTitle">Conversation</strong><span id="chatSubtitle">Flock chat</span></div>
-          <div class="chat-header-actions"><button id="chatDetailsBtn" class="icon-button header-action" title="Conversation details">ⓘ</button><button id="addPeopleBtn" class="icon-button header-action" title="Add friends to this group" hidden>＋</button><button id="chatMoreBtn" class="icon-button header-action" title="More options">•••</button></div>
+          <div class="chat-header-info"><strong id="chatTitle">Conversation</strong><span id="chatSubtitle">Clines chat</span></div>
+          <div class="chat-header-actions"><button id="voiceCallBtn" class="icon-button header-action" title="Start voice call" aria-label="Start voice call" hidden>☎</button><button id="chatDetailsBtn" class="icon-button header-action" title="Conversation details">ⓘ</button><button id="addPeopleBtn" class="icon-button header-action" title="Add friends to this group" hidden>＋</button><button id="chatMoreBtn" class="icon-button header-action" title="More options">•••</button></div>
         </header>
         <div id="chatWallpaper" class="chat-wallpaper"></div>
         <div id="messageTimeline" class="message-timeline" aria-live="polite"><div class="timeline-start">This is the beginning of something good.</div></div>
@@ -113,7 +115,7 @@
 
   <div id="modalBackdrop" class="modal-backdrop" hidden>
     <section id="activeModal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <header class="modal-header"><div><span id="modalKicker" class="modal-kicker">FLOCK / SPACE</span><h2 id="modalTitle">Make it yours.</h2><p id="modalDescription"></p></div><button id="closeModalBtn" class="icon-button modal-close" title="Close">×</button></header>
+      <header class="modal-header"><div><span id="modalKicker" class="modal-kicker">CLINES / SPACE</span><h2 id="modalTitle">Make it yours.</h2><p id="modalDescription"></p></div><button id="closeModalBtn" class="icon-button modal-close" title="Close">×</button></header>
       <div id="modalBody" class="modal-body"></div>
       <div id="modalFeedback" class="feedback" role="status" aria-live="polite"></div>
       <footer id="modalFooter" class="modal-footer"><button id="modalCancelBtn" class="button button-soft" type="button">Cancel</button><button id="modalPrimaryBtn" class="button button-primary" type="button">Save</button></footer>
@@ -121,7 +123,8 @@
   </div>
 
   <div id="recordingPanel" class="recording-panel" hidden><div class="recording-indicator"><span></span><div><strong id="recordingTitle">Recording voice note</strong><small id="recordingTimer">00:00</small></div></div><video id="recordingPreview" autoplay muted playsinline hidden></video><div class="recording-actions"><button id="cancelRecordingBtn" class="button button-soft" type="button">Cancel</button><button id="finishRecordingBtn" class="button button-primary" type="button">Finish & send</button></div></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"><span class="toast-symbol">✦</span><div><strong id="toastTitle">Flock</strong><span id="toastMessage">You're all set.</span></div><button id="toastCloseBtn" class="icon-button">×</button></div>
+  <audio id="remoteCallAudio" autoplay playsinline hidden></audio>
+  <div id="toast" class="toast" role="status" aria-live="polite"><span class="toast-symbol">✦</span><div><strong id="toastTitle">Clines</strong><span id="toastMessage">You're all set.</span></div><button id="toastCloseBtn" class="icon-button">×</button></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
   <script src="./flock-runtime.js"></script>
   <script src="./flock-config.js"></script>

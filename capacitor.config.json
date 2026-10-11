@@ -1,6 +1,6 @@
 {
   "appId": "com.flock.messaging",
-  "appName": "Flock",
+  "appName": "Clines",
   "webDir": "mobile/www",
   "android": {
     "path": "android",
