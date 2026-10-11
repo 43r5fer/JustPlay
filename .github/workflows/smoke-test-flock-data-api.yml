@@ -1,4 +1,4 @@
-name: Temporary Flock data API smoke test
+name: Temporary Flock data API smoke test (two accounts)
 
 on:
   push:
