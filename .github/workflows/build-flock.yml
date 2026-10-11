@@ -2,6 +2,8 @@ name: Build and release Clines for Windows and Android
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
       - "flock-v*"
@@ -14,6 +16,7 @@ permissions:
 jobs:
   windows:
     name: Build Windows setup
+    if: startsWith(github.ref, 'refs/tags/') || github.event.head_commit.message == 'Publish Clines v1.0.4'
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -49,6 +52,7 @@ jobs:
 
   android:
     name: Build Android APK for direct distribution
+    if: startsWith(github.ref, 'refs/tags/') || github.event.head_commit.message == 'Publish Clines v1.0.4'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
@@ -145,7 +149,7 @@ jobs:
 
   release:
     name: Publish Clines release assets
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/flock-v') || startsWith(github.ref, 'refs/tags/clines-v')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/flock-v') || startsWith(github.ref, 'refs/tags/clines-v') || (github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Publish Clines v1.0.4')
     needs:
       - windows
       - android
@@ -161,7 +165,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Clines ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: Clines v1.0.4
+          tag_name: clines-v1.0.4
+          target_commitish: main
           generate_release_notes: true
           files: release-files/*
