@@ -20,7 +20,7 @@ Flock is a cross-platform messenger for Windows, Android and the web. Accounts u
 
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock-Setup.exe
 - Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
-- Play Store App Bundle (built only after Android upload signing secrets are configured): see https://github.com/43r5fer/JustPlay/releases/latest
+- Direct-download Android APK: https://github.com/43r5fer/JustPlay/releases/latest/download/Flock.apk
 - Web app: https://43r5fer.github.io/JustPlay/app/
 - Landing page: https://43r5fer.github.io/JustPlay/
 - Source code: https://github.com/43r5fer/JustPlay
@@ -74,26 +74,21 @@ node scripts/patch-android-manifest.mjs
 node scripts/patch-android-release.mjs
 ~~~
 
-The release script sets package version/versionCode, target API 36, and the native Google Play in-app update bridge.
+The release script sets package version/versionCode and target API 36. Flock is distributed directly as an APK; it does not need to be published on Google Play.
 
-### Play Store upload signing
+### Direct APK signing and updates
 
-The workflow builds a signed Flock-Play-Store.aab only when these protected GitHub Actions secrets exist:
+For reliable in-place APK updates, sign every APK with the same private release key. I generated a one-time signing kit for this project; keep it private and do not commit it. Open the repository [Actions secrets settings](https://github.com/43r5fer/JustPlay/settings/secrets/actions) and add these values:
 
-- ANDROID_KEYSTORE_BASE64
-- ANDROID_KEYSTORE_PASSWORD
-- ANDROID_KEY_ALIAS
-- ANDROID_KEY_PASSWORD
+- ANDROID_KEYSTORE_BASE64 — the contents of the kit's base64 text file.
+- ANDROID_KEYSTORE_PASSWORD — the value in the matching password text file.
+- ANDROID_KEY_ALIAS — flock-upload.
+- ANDROID_KEY_PASSWORD — the value in the matching key-password text file.
 
-Create an upload keystore locally and add its base64-encoded contents/passwords as repository Actions secrets:
-https://github.com/43r5fer/JustPlay/settings/secrets/actions
+The release workflow then builds only the signed Flock.apk for direct distribution; it no longer builds a Play Store AAB. If those secrets are missing, the workflow still creates a debug-signed APK that runs, but future in-place updates may require uninstalling the old APK first. The current v1.0.3 APK was built before a persistent release key was configured; migrating from it to the first release-signed APK requires a one-time uninstall/reinstall. Your cloud account and messages are stored remotely, so sign back in after reinstalling.
 
-Never commit the keystore or passwords. Without these secrets, CI intentionally creates a testing APK and skips the Play Store App Bundle. That is safer than distributing an unsigned or mismatched signing key.
-
-After adding the secrets, publish the signed AAB to a Play Console internal-testing track first, complete the store listing, privacy/Data safety/content declarations, and submit to Google for review. The GitHub build workflow creates the AAB; it does not publish to your Play Console account automatically.
-
-Android updates use Google's official in-app update API for Play-installed builds. Direct APK installs can receive a release notice, but Android still requires its own user approval to install an APK. Silent external APK installation is intentionally not attempted.
-
+The GitHub project cannot use your keystore until you put these values into Actions secrets. Never share the keystore/passwords publicly.
+ 
 ## PWA, privacy and production notes
 
 - The web app is served from /app/. Supported browsers can offer Install app / Add to Home Screen.
