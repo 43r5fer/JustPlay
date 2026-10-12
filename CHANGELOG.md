@@ -1,4 +1,11 @@
-# Flock release notes
+# Clines release notes
+
+## v1.0.6 — Button initialization hotfix
+
+- Restored the missing Blocked users sidebar element expected by the renderer.
+- Guarded the blocked-users event binding so a missing optional button cannot abort registration of the remaining UI controls.
+- Bumped app version so Windows, Android and web clients can receive the fix as a new release.
+
 
 ## Live backend hotfix — October 11, 2026
 
