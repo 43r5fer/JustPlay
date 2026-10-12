@@ -1,7 +1,7 @@
 {
   "name": "clines-messenger",
-  "version": "1.0.5",
-  "description": "Clines — cross-platform messaging with required updates and message notifications",
+  "version": "1.0.6",
+  "description": "Clines — cross-platform messaging with required updates and reliable UI initialization",
   "main": "electron/main.cjs",
   "author": "Clines contributors",
   "license": "MIT",
