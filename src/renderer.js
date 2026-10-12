@@ -1639,9 +1639,9 @@ async function openBlockedUsers() {
 }
 function openAboutNew() {
   showModal({
-    kicker: 'CLINES / VERSION 1.0.5',
+    kicker: 'CLINES / VERSION 1.0.6',
     title: 'About New',
-    description: 'What is new in the Clines 1.0.5 update.',
+    description: 'What is new in the Clines 1.0.6 update.',
     body: '<div class="release-notes"><div class="release-note"><b>01</b><span><strong>Required app updates</strong><small>When a newer release is available, installed apps lock the screen until the update is installed.</small></span></div><div class="release-note"><b>02</b><span><strong>Visible download progress</strong><small>Windows shows download progress and restarts to finish installing. Supported Android builds show APK download progress and open the Android installer.</small></span></div><div class="release-note"><b>03</b><span><strong>Replay-only video moments</strong><small>Status videos play without seek, pause or stop controls; Replay starts the video from the beginning.</small></span></div><div class="release-note"><b>04</b><span><strong>Message notifications</strong><small>Clines can alert you when new messages arrive, subject to notification permission and whether the app is allowed to run.</small></span></div><div class="release-note"><b>05</b><span><strong>Update controls, clearer layout</strong><small>Use Update Clines for a release check or About New for release notes.</small></span></div></div><button id="aboutCheckUpdatesBtn" type="button" class="button button-soft button-wide">↻ Check for updates</button>',
     hidePrimary: true
   });
@@ -2394,7 +2394,8 @@ function bindEvents() {
   });
   $('profileOpenBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
   $('openSettingsBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
-  $('openBlockedUsersBtn').addEventListener('click', () => openBlockedUsers().catch(err => toast('Could not load blocked users', err.message, true)));
+  const blockedUsersButton = $('openBlockedUsersBtn');
+  if (blockedUsersButton) blockedUsersButton.addEventListener('click', () => openBlockedUsers().catch(err => toast('Could not load blocked users', err.message, true)));
   $('openAboutNewBtn').addEventListener('click', openAboutNew);
   $('checkUpdatesBtn').addEventListener('click', checkUpdatesManually);
   $('voiceCallBtn').addEventListener('click', () => startVoiceCall().catch(err => toast('Could not start call', err.message || 'Try again.', true)));
