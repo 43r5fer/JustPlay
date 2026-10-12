@@ -455,7 +455,7 @@ async function pollAndroidUpdateDownload(downloadId, url, version) {
       kicker: 'CLINES / REQUIRED UPDATE',
       title: 'Download complete',
       description: 'Clines ' + version + ' is ready. Android will ask you to approve the installation.',
-      body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>The APK is downloaded. Choose Install update to open Android’s system installer. The app can resume only if the APK signing key matches the installed app.</p></div>',
+      body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>The APK is downloaded. Choose Install update to open Android’s system installer. Android requires approval. If it reports a signature mismatch, uninstall the older Clines/Flock app first, then install this APK and sign back in; your cloud account and messages remain online.</p></div>',
       primary: 'Install update',
       onPrimary: async () => {
         await native.installDownloaded({ downloadId });
