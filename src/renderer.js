@@ -406,7 +406,7 @@ function wireDesktopUpdates() {
 }
 function nativeClinesPlugin() {
   const cap = window.Capacitor;
-  return cap && cap.Plugins && cap.Plugins.ClinesUpdater ? cap.Plugins.ClinesUpdater : null;
+  return window.ClinesUpdater || (cap && cap.Plugins && cap.Plugins.ClinesUpdater ? cap.Plugins.ClinesUpdater : null);
 }
 function mobileCapacitorPlatform() {
   const cap = window.Capacitor;
@@ -714,7 +714,8 @@ function notifyNewConversationMessages(rows) {
       showIncomingMessageNotification(conversation).catch(() => {});
     }
   });
-}function setAppLoading(message) {
+}
+function setAppLoading(message) {
   $('conversationList').innerHTML = '<div class="side-empty">' + escapeHtml(message || 'Loading your chats…') + '</div>';
 }
 async function refreshFriends() {
