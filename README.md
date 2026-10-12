@@ -18,6 +18,8 @@ Clines is a cross-platform messenger for Windows, Android and the web. Accounts 
 
 ## Downloads and release
 
+Clines v1.0.6 is the UI initialization hotfix: it restores the Blocked users sidebar button and prevents that event hookup from aborting the rest of the app's button setup.
+
 The updater checks the latest release. Windows shows download progress and restarts to install. Supported Android builds show APK download progress and hand off to Android's system installer. Android requires system installation approval and a persistent signing key for in-place upgrades.
 
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines-Setup.exe
