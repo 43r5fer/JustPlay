@@ -1,8 +1,11 @@
-name: Validate Clines v1.0.4
+name: Validate Clines v1.0.5
 on:
   push:
     branches:
-      - clines-v1.0.4
+      - clines-v1.0.5
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -11,7 +14,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -21,10 +24,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Check JavaScript syntax
+      - name: Check JavaScript and build scripts
         run: npm run check
       - name: Validate app metadata
         run: |
-          node -e "const p=require('./package.json'); if(p.version!=='1.0.4'||p.build.productName!=='Clines') process.exit(1); JSON.parse(require('fs').readFileSync('capacitor.config.json','utf8')); JSON.parse(require('fs').readFileSync('src/manifest.webmanifest','utf8'));"
+          node -e "const p=require('./package.json'); if(p.version!=='1.0.5'||p.build.productName!=='Clines') process.exit(1); JSON.parse(require('fs').readFileSync('capacitor.config.json','utf8')); JSON.parse(require('fs').readFileSync('src/manifest.webmanifest','utf8'));"
       - name: Prepare Android web assets
         run: npm run mobile:prepare
