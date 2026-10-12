@@ -14,9 +14,11 @@ Clines is a cross-platform messenger for Windows, Android and the web. Accounts 
 - Profile image, display name, bio and photo/video chat wallpapers.
 - Private storage, scoped row-level policies and a Clines-session identity check at the database boundary.
 - Windows installer with automatic update prompts and a responsive browser PWA.
-- Direct Android APK builds with update notices from the Clines GitHub release feed.
+- Direct Android APK builds with required update checks, in-app download progress and native installer hand-off; a consistent signing key is required for updates without uninstalling.
 
 ## Downloads and release
+
+The updater checks the latest release. Windows shows download progress and restarts to install. Supported Android builds show APK download progress and hand off to Android's system installer. Android requires system installation approval and a persistent signing key for in-place upgrades.
 
 - Windows setup: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines-Setup.exe
 - Android APK for direct sideloading: https://github.com/43r5fer/JustPlay/releases/latest/download/Clines.apk
@@ -59,7 +61,7 @@ node scripts/write-update-manifest.cjs
 
 Output: dist/Clines-Setup.exe plus dist/latest.yml.
 
-When a newer Windows release is published, the installed app detects it, prompts Download update, then prompts Restart and update when ready.
+When a newer Windows release is published, the app blocks chats, requires the update, shows download progress and restarts to install it.
 
 ## Direct Android APK builds
 
