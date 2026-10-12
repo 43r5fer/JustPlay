@@ -38,6 +38,14 @@ function configureUpdater() {
     message: 'Clines could not check for updates right now.'
   }));
   autoUpdater.checkForUpdates().catch(() => {});
+
+  // Keep an open Windows client current without requiring a restart or manual check.
+  // Once an update is found, stop polling until it has been installed/restarted.
+  const updatePoller = setInterval(() => {
+    if (!app.isPackaged || !['idle', 'not-available', 'error'].includes(updateState.status)) return;
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 5 * 60 * 1000);
+  if (typeof updatePoller.unref === 'function') updatePoller.unref();
 }
 
 function configureMediaPermissions() {

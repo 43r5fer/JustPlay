@@ -85,6 +85,11 @@ let pendingReply = null;
 let openedStatusIndex = 0;
 let modalPrimaryHandler = null;
 let modalCancelHandler = null;
+let mandatoryUpdateActive = false;
+let updateDownloadInProgress = false;
+let notificationBaselineReady = false;
+let notificationPermissionAsked = false;
+const notificationLatestIds = new Map();
 let signedUrlCache = new Map();
 let lastStatusLoad = 0;
 let suppressAuthCallback = false;
@@ -160,6 +165,9 @@ function resetModalHandlers() {
 }
 function showModal(options) {
   const opt = options || {};
+  if (mandatoryUpdateActive && opt.mandatoryUpdate !== true) return;
+  mandatoryUpdateActive = opt.mandatoryUpdate === true;
+  document.body.classList.toggle('mandatory-update-lock', mandatoryUpdateActive);
   $('modalKicker').textContent = opt.kicker || 'CLINES / YOUR SPACE';
   $('modalTitle').textContent = opt.title || 'Make it yours.';
   $('modalDescription').textContent = opt.description || '';
@@ -169,7 +177,8 @@ function showModal(options) {
   $('modalPrimaryBtn').textContent = opt.primary || 'Save';
   $('modalPrimaryBtn').hidden = opt.hidePrimary === true;
   $('modalCancelBtn').textContent = opt.cancel || 'Cancel';
-  $('modalCancelBtn').hidden = opt.hideCancel === true;
+  $('modalCancelBtn').hidden = opt.hideCancel === true || mandatoryUpdateActive;
+  $('closeModalBtn').hidden = mandatoryUpdateActive;
   $('modalFooter').hidden = opt.hideFooter === true;
   resetModalHandlers();
   modalPrimaryHandler = opt.onPrimary || null;
@@ -178,6 +187,7 @@ function showModal(options) {
   document.body.classList.add('modal-open');
 }
 function closeModal() {
+  if (mandatoryUpdateActive) return;
   if (modalCancelHandler) {
     const handler = modalCancelHandler;
     modalCancelHandler = null;
@@ -297,6 +307,37 @@ async function warmProfileMedia(rows) {
   await Promise.all(paths.map(path => getSignedUrl(path).catch(() => '')));
 }
 let lastUpdatePrompt = '';
+let lastMobileUpdateVersion = '';
+let lastMobileUpdateCheck = 0;
+let lastBrowserUpdateCheck = 0;
+let browserUpdatePromptVersion = '';
+let mobileUpdateDownloadId = null;
+function showRequiredUpdate(options) {
+  showModal(Object.assign({}, options || {}, { mandatoryUpdate: true, hideCancel: true }));
+}
+function updateProgressMarkup(text) {
+  return '<div class="update-progress-shell"><div id="updateProgressBar" class="update-progress-bar" style="width:0%"></div></div><p id="updateProgressText" class="update-progress-text">' + escapeHtml(text || 'Preparing download…') + '</p>';
+}
+function setUpdateProgress(percent, text) {
+  const bar = $('updateProgressBar');
+  const label = $('updateProgressText');
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (bar) bar.style.width = value + '%';
+  if (label) label.textContent = text || (Math.round(value) + '% downloaded');
+}
+function renderDesktopDownloadProgress(state) {
+  if (!(mandatoryUpdateActive && $('updateProgressBar'))) {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Updating Clines',
+      description: 'This update is required before you can continue chatting.',
+      body: updateProgressMarkup('Preparing secure download…'),
+      hideFooter: true
+    });
+  }
+  const percent = Math.max(0, Math.min(100, Number(state && state.percent) || 0));
+  setUpdateProgress(percent, 'Downloading Clines ' + String(state && state.version || '') + ' · ' + Math.round(percent) + '%');
+}
 function wireDesktopUpdates() {
   const desktop = window.flockDesktop;
   if (!desktop || typeof desktop.onUpdateStatus !== 'function') return;
@@ -306,39 +347,67 @@ function wireDesktopUpdates() {
       const version = String(state.version || 'new version');
       if (lastUpdatePrompt === 'available:' + version) return;
       lastUpdatePrompt = 'available:' + version;
-      showModal({
-        kicker: 'CLINES / UPDATE',
-        title: 'A fresh Clines is ready.',
-        description: 'Version ' + version + ' is available. Downloading it will not remove your account or cloud messages.',
-        body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>The update is downloaded directly from the official Clines GitHub release.</p></div>',
-        primary: 'Download update',
+      showRequiredUpdate({
+        kicker: 'CLINES / REQUIRED UPDATE',
+        title: 'Update required to continue',
+        description: 'Clines ' + version + ' is available. You must install it before using chats again.',
+        body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Your account, friends and cloud messages are saved online. Clines will download the update, then restart to install it.</p></div>',
+        primary: 'Download and update',
         onPrimary: async () => {
+          updateDownloadInProgress = true;
+          showRequiredUpdate({
+            kicker: 'CLINES / REQUIRED UPDATE',
+            title: 'Downloading Clines',
+            description: 'Keep this window open. You can continue after the update installs.',
+            body: updateProgressMarkup('Starting download…'),
+            hideFooter: true
+          });
           await desktop.downloadUpdate();
-          closeModal();
-          toast('Downloading Clines update', 'You can keep chatting while the update downloads.');
         }
       });
+    } else if (state.status === 'downloading') {
+      updateDownloadInProgress = true;
+      renderDesktopDownloadProgress(state);
     } else if (state.status === 'downloaded') {
-      if (lastUpdatePrompt === 'downloaded:' + state.version) return;
-      lastUpdatePrompt = 'downloaded:' + state.version;
-      showModal({
-        kicker: 'CLINES / UPDATE',
-        title: 'Ready when you are.',
+      updateDownloadInProgress = false;
+      lastUpdatePrompt = 'downloaded:' + String(state.version || '');
+      showRequiredUpdate({
+        kicker: 'CLINES / REQUIRED UPDATE',
+        title: 'Ready to install',
         description: 'Clines ' + String(state.version || '') + ' has finished downloading.',
-        body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Clines will close and restart to finish installing the update. Your cloud chats are saved in your account.</p></div>',
-        primary: 'Restart and update',
+        body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>Clines must restart to finish updating. Your cloud account and messages remain saved.</p></div>',
+        primary: 'Restart and install',
         onPrimary: async () => { await desktop.installUpdate(); }
       });
-    } else if (state.status === 'error' && lastUpdatePrompt !== 'error') {
-      lastUpdatePrompt = 'error';
-      toast('Update check failed', state.message || 'Check your internet connection later.');
+    } else if (state.status === 'error') {
+      if (mandatoryUpdateActive || updateDownloadInProgress) {
+        showRequiredUpdate({
+          kicker: 'CLINES / UPDATE REQUIRED',
+          title: 'Update could not finish',
+          description: 'Clines needs this update before you continue. Check your internet connection and retry.',
+          body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(state.message || 'The update service could not complete the request.') + '</p></div>',
+          primary: 'Retry update check',
+          onPrimary: async () => {
+            lastUpdatePrompt = '';
+            updateDownloadInProgress = false;
+            await desktop.checkForUpdates();
+          }
+        });
+      } else if (lastUpdatePrompt !== 'error') {
+        lastUpdatePrompt = 'error';
+        toast('Update check failed', state.message || 'Check your internet connection later.');
+      }
+    } else if (state.status === 'not-available' && !mandatoryUpdateActive) {
+      lastUpdatePrompt = '';
     }
   };
   desktop.onUpdateStatus(handle);
   if (typeof desktop.getUpdateStatus === 'function') desktop.getUpdateStatus().then(handle).catch(() => {});
 }
-let lastMobileUpdateVersion = '';
-let lastMobileUpdateCheck = 0;
+function nativeClinesPlugin() {
+  const cap = window.Capacitor;
+  return window.ClinesUpdater || (cap && cap.Plugins && cap.Plugins.ClinesUpdater ? cap.Plugins.ClinesUpdater : null);
+}
 function mobileCapacitorPlatform() {
   const cap = window.Capacitor;
   if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return '';
@@ -374,6 +443,85 @@ function openExternalFlockUrl(url) {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
+async function pollAndroidUpdateDownload(downloadId, url, version) {
+  const native = nativeClinesPlugin();
+  if (!native || typeof native.getDownloadStatus !== 'function') throw new Error('The in-app Android updater is unavailable in this installed build.');
+  const result = await native.getDownloadStatus({ downloadId });
+  const total = Math.max(0, Number(result.totalBytes) || 0);
+  const received = Math.max(0, Number(result.bytesDownloaded) || 0);
+  const percent = total > 0 ? Math.min(100, received / total * 100) : 0;
+  if (result.status === 'downloaded') {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Download complete',
+      description: 'Clines ' + version + ' is ready. Android will ask you to approve the installation.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">✓</span><p>The APK is downloaded. Choose Install update to open Android’s system installer. Android requires approval. If it reports a signature mismatch, uninstall the older Clines/Flock app first, then install this APK and sign back in; your cloud account and messages remain online.</p></div>',
+      primary: 'Install update',
+      onPrimary: async () => {
+        await native.installDownloaded({ downloadId });
+        toast('Finish the Android install', 'Approve installation in the Android system screen.');
+      }
+    });
+    return;
+  }
+  if (result.status === 'failed') {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Download failed',
+      description: 'This update is required before you can continue.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(result.reason || 'Check your connection and retry the download.') + '</p></div>',
+      primary: 'Retry download',
+      onPrimary: async () => runAndroidApkUpdate(url, version)
+    });
+    return;
+  }
+  if (!(mandatoryUpdateActive && $('updateProgressBar'))) {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Downloading Clines',
+      description: 'This update is required before you can continue chatting.',
+      body: updateProgressMarkup('Connecting to the official release…'),
+      hideFooter: true
+    });
+  }
+  setUpdateProgress(percent, (total ? fmtBytes(received) + ' of ' + fmtBytes(total) : fmtBytes(received) + ' downloaded') + ' · ' + Math.round(percent) + '%');
+  setTimeout(() => pollAndroidUpdateDownload(downloadId, url, version).catch(error => {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Update download paused',
+      description: 'Reconnect and retry to continue using Clines.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(error.message || 'The download status could not be checked.') + '</p></div>',
+      primary: 'Retry download',
+      onPrimary: async () => runAndroidApkUpdate(url, version)
+    });
+  }), 800);
+}
+async function runAndroidApkUpdate(url, version) {
+  const native = nativeClinesPlugin();
+  if (!native || typeof native.startDownload !== 'function') {
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Update required to continue',
+      description: 'This installed Android build does not include the new in-app downloader yet. Open the official APK and complete Android’s installer to update.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Download Clines ' + escapeHtml(version) + ' from GitHub. Android may ask for install approval. If it reports a signing mismatch, uninstall the older app first; your account and cloud messages remain online.</p></div>',
+      primary: 'Open official APK',
+      onPrimary: async () => { openExternalFlockUrl(url); }
+    });
+    return;
+  }
+  showRequiredUpdate({
+    kicker: 'CLINES / REQUIRED UPDATE',
+    title: 'Starting download',
+    description: 'Clines will show download progress here, then open Android’s installer.',
+    body: updateProgressMarkup('Starting download…'),
+    hideFooter: true
+  });
+  const result = await native.startDownload({ url });
+  const downloadId = Number(result && result.downloadId);
+  if (!Number.isFinite(downloadId) || downloadId <= 0) throw new Error('Android did not return a valid download ID.');
+  mobileUpdateDownloadId = downloadId;
+  await pollAndroidUpdateDownload(downloadId, url, version);
+}
 async function checkMobileUpdate(options) {
   if (mobileCapacitorPlatform() !== 'android') return;
   const now = Date.now();
@@ -387,7 +535,7 @@ async function checkMobileUpdate(options) {
       headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       cache: 'no-store'
     });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error('GitHub release check returned HTTP ' + response.status + '.');
     const release = await response.json();
     const latestVersion = versionFromRelease(release);
     if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) return;
@@ -395,37 +543,177 @@ async function checkMobileUpdate(options) {
     if (lastMobileUpdateVersion === promptKey) return;
     lastMobileUpdateVersion = promptKey;
     const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'Clines.apk') : null;
-    const releaseSigned = Boolean(runtime.releaseSigned);
-    const targetUrl = releaseSigned && apk && apk.browser_download_url
-      ? apk.browser_download_url
-      : (release.html_url || ('https://github.com/' + ownerRepo + '/releases/latest'));
-    showModal({
-      kicker: 'CLINES / UPDATE AVAILABLE',
-      title: 'A new Clines is ready.',
-      description: releaseSigned
-        ? 'Clines ' + latestVersion + ' is ready to download. Android will ask you to approve the install.'
-        : 'Clines ' + latestVersion + ' is available. This APK was built without the permanent release-signing key, so open the release page and follow its installation instructions.',
-      body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Your account, friends and cloud conversations are stored online and will remain available after an update.</p></div>',
-      primary: releaseSigned ? 'Download update' : 'View update',
+    const targetUrl = apk && apk.browser_download_url ? apk.browser_download_url : release.html_url;
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Update required to continue',
+      description: 'Clines ' + latestVersion + ' is available. You must update before you can continue chatting.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">↑</span><p>Clines will download the APK and show progress. Android’s system installer must approve the final installation. Your account and cloud chats remain online.</p></div>',
+      primary: 'Download and update',
       onPrimary: async () => {
-        closeModal();
-        openExternalFlockUrl(targetUrl);
-        toast(releaseSigned ? 'Downloading Clines update' : 'Opening Clines release',
-          releaseSigned ? 'After the APK downloads, approve installation in Android.' : 'Follow the installation instructions on the release page.');
+        try {
+          if (apk && apk.browser_download_url) await runAndroidApkUpdate(targetUrl, latestVersion);
+          else openExternalFlockUrl(targetUrl);
+        } catch (error) {
+          showRequiredUpdate({
+            kicker: 'CLINES / REQUIRED UPDATE',
+            title: 'Update could not start',
+            description: 'This update is required before you can continue.',
+            body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(error.message || 'Please retry the download.') + '</p></div>',
+            primary: 'Retry update',
+            onPrimary: async () => runAndroidApkUpdate(targetUrl, latestVersion)
+          });
+        }
+      }
+    });
+  } catch (error) {
+    /* Keep network failures visible only when an update gate is already active. */
+    if (mandatoryUpdateActive) {
+      showRequiredUpdate({
+        kicker: 'CLINES / REQUIRED UPDATE',
+        title: 'Can’t verify the update',
+        description: 'Connect to the internet and retry. Clines cannot confirm whether this build is current.',
+        body: '<div class="confirm-panel"><span class="confirm-icon">!</span><p>' + escapeHtml(error.message || 'The release service is unavailable.') + '</p></div>',
+        primary: 'Check again',
+        onPrimary: async () => { lastMobileUpdateVersion = ''; lastMobileUpdateCheck = 0; await checkMobileUpdate({ force: true }); }
+      });
+    }
+  }
+}
+async function checkBrowserUpdate(options) {
+  if (window.flockDesktop || mobileCapacitorPlatform() === 'android' || window.location.protocol !== 'https:') return;
+  const now = Date.now();
+  if (!(options && options.force) && now - lastBrowserUpdateCheck < 5 * 60 * 1000) return;
+  lastBrowserUpdateCheck = now;
+  const runtime = window.FLOCK_RUNTIME || {};
+  const currentVersion = String(runtime.version || '0.0.0');
+  const ownerRepo = String((window.FLOCK_CONFIG || {}).githubRepo || '43r5fer/JustPlay');
+  try {
+    const response = await fetch('https://api.github.com/repos/' + ownerRepo + '/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+      cache: 'no-store'
+    });
+    if (!response.ok) return;
+    const release = await response.json();
+    const latestVersion = versionFromRelease(release);
+    if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0 || browserUpdatePromptVersion === latestVersion) return;
+    browserUpdatePromptVersion = latestVersion;
+    showRequiredUpdate({
+      kicker: 'CLINES / REQUIRED UPDATE',
+      title: 'Refresh Clines to continue',
+      description: 'Clines ' + latestVersion + ' is available. Reload the current web app to install the new version.',
+      body: '<div class="confirm-panel"><span class="confirm-icon">↻</span><p>The browser build refreshes from the official Clines web app. Your account and cloud conversations remain online.</p></div>',
+      primary: 'Reload and update',
+      onPrimary: async () => {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+          await Promise.all(registrations.map(registration => registration.update().catch(() => {})));
+        }
+        window.location.reload();
       }
     });
   } catch {
-    /* A temporary release-feed failure must not interrupt sign-in or messaging. */
+    /* Do not block current sessions if the public release feed is temporarily unavailable. */
+  }
+}
+async function checkUpdatesManually() {
+  try {
+    if (window.flockDesktop && typeof window.flockDesktop.checkForUpdates === 'function') {
+      await window.flockDesktop.checkForUpdates();
+    } else if (mobileCapacitorPlatform() === 'android') {
+      lastMobileUpdateVersion = '';
+      lastMobileUpdateCheck = 0;
+      await checkMobileUpdate({ force: true });
+    } else {
+      browserUpdatePromptVersion = '';
+      lastBrowserUpdateCheck = 0;
+      await checkBrowserUpdate({ force: true });
+    }
+  } catch (error) {
+    toast('Could not check for updates', error.message || 'Try again when connected.', true);
   }
 }
 function wireMobileUpdates() {
-  if (mobileCapacitorPlatform() !== 'android') return;
-  checkMobileUpdate({ force: true }).catch(() => {});
-  window.addEventListener('focus', () => checkMobileUpdate().catch(() => {}));
+  if (window.flockDesktop) return;
+  if (mobileCapacitorPlatform() === 'android') {
+    checkMobileUpdate({ force: true }).catch(() => {});
+    window.addEventListener('focus', () => checkMobileUpdate().catch(() => {}));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkMobileUpdate().catch(() => {});
+    });
+    setInterval(() => checkMobileUpdate().catch(() => {}), 5 * 60 * 1000);
+    return;
+  }
+  checkBrowserUpdate({ force: true }).catch(() => {});
+  window.addEventListener('focus', () => checkBrowserUpdate().catch(() => {}));
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) checkMobileUpdate().catch(() => {});
+    if (!document.hidden) checkBrowserUpdate().catch(() => {});
   });
-  setInterval(() => checkMobileUpdate().catch(() => {}), 6 * 60 * 60 * 1000);
+  setInterval(() => checkBrowserUpdate().catch(() => {}), 5 * 60 * 1000);
+}
+async function requestMessageNotificationPermission() {
+  if (notificationPermissionAsked) return;
+  notificationPermissionAsked = true;
+  try {
+    const native = nativeClinesPlugin();
+    if (mobileCapacitorPlatform() === 'android' && native && typeof native.requestNotificationsPermission === 'function') {
+      await native.requestNotificationsPermission();
+      return;
+    }
+    if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+  } catch {
+    /* Notification permission is optional for foreground chat functionality. */
+  }
+}
+async function showIncomingMessageNotification(conversation) {
+  const message = conversation && conversation.latest;
+  if (!message || message.sender_id === (user && user.id) || message.deleted_at) return;
+  if (!document.hidden && activeConversation && activeConversation.id === conversation.id) return;
+  const sender = conversation.kind === 'group'
+    ? (message.sender && (message.sender.display_name || message.sender.username)) || conversation.title
+    : conversation.title;
+  const snippets = {
+    image: 'Sent a photo',
+    video: 'Sent a video',
+    video_note: 'Sent a video note',
+    voice: 'Sent a voice message',
+    youtube: 'Shared a YouTube video'
+  };
+  const body = message.kind === 'text' ? String(message.body || 'New message').slice(0, 160) : (snippets[message.kind] || 'Sent an attachment');
+  const title = conversation.kind === 'group' ? sender + ' · ' + conversation.title : sender;
+  const notificationId = Math.abs(Array.from(String(message.id || conversation.id)).reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) | 0, 0)) || 1001;
+  try {
+    const native = nativeClinesPlugin();
+    if (mobileCapacitorPlatform() === 'android' && native && typeof native.showMessageNotification === 'function') {
+      await native.showMessageNotification({ id: notificationId, title, body, conversationId: conversation.id });
+      return;
+    }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification(title, { body, tag: 'clines-message-' + conversation.id, silent: false });
+      notification.onclick = () => { window.focus(); notification.close(); };
+    }
+  } catch (error) {
+    console.warn('[Clines] Message notification could not be shown:', error && error.message ? error.message : 'permission denied');
+  }
+}
+function notifyNewConversationMessages(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!notificationBaselineReady) {
+    list.forEach(conversation => {
+      if (conversation.latest) notificationLatestIds.set(conversation.id, conversation.latest.id);
+    });
+    notificationBaselineReady = true;
+    return;
+  }
+  list.forEach(conversation => {
+    const latest = conversation.latest;
+    if (!latest) return;
+    const previousId = notificationLatestIds.get(conversation.id);
+    notificationLatestIds.set(conversation.id, latest.id);
+    if (previousId && previousId !== latest.id && latest.sender_id !== user.id && !latest.deleted_at) {
+      showIncomingMessageNotification(conversation).catch(() => {});
+    }
+  });
 }
 function setAppLoading(message) {
   $('conversationList').innerHTML = '<div class="side-empty">' + escapeHtml(message || 'Loading your chats…') + '</div>';
@@ -538,6 +826,7 @@ async function refreshConversations(options) {
   if (!ids.length) {
     conversations = [];
     renderConversations();
+    notifyNewConversationMessages(conversations);
     return [];
   }
   const [convRes, memberRowsRes, messagesRes] = await Promise.all([
@@ -575,6 +864,7 @@ async function refreshConversations(options) {
       unread: Boolean(latest && latest.sender_id !== user.id && !latest.deleted_at && (!mineMember || !mineMember.last_read_at || new Date(latest.created_at) > new Date(mineMember.last_read_at))),
     });
   });
+  notifyNewConversationMessages(conversations);
   conversations.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
   renderConversations();
   $('chatCount').textContent = String(conversations.length);
@@ -1349,12 +1639,13 @@ async function openBlockedUsers() {
 }
 function openAboutNew() {
   showModal({
-    kicker: 'CLINES / VERSION 1.0.4',
+    kicker: 'CLINES / VERSION 1.0.5',
     title: 'About New',
-    description: 'What is new in the Clines 1.0.4 update.',
-    body: '<div class="release-notes"><div class="release-note"><b>01</b><span><strong>Clines is the new name</strong><small>Fresh branding across the app, installer, and Android build.</small></span></div><div class="release-note"><b>02</b><span><strong>Group controls</strong><small>Owners can disband groups; permitted admins can remove members; non-owners can leave.</small></span></div><div class="release-note"><b>03</b><span><strong>Block and unblock users</strong><small>Block someone from a direct chat and manage your blocked list from the sidebar.</small></span></div><div class="release-note"><b>04</b><span><strong>Voice calls</strong><small>Direct one-to-one voice calls with accept, decline, and hang-up controls. Network support varies.</small></span></div><div class="release-note"><b>05</b><span><strong>Media note reliability</strong><small>Improved recorder format handling and keeps voice/video notes attached to the chat they were recorded in.</small></span></div></div>',
+    description: 'What is new in the Clines 1.0.5 update.',
+    body: '<div class="release-notes"><div class="release-note"><b>01</b><span><strong>Required app updates</strong><small>When a newer release is available, installed apps lock the screen until the update is installed.</small></span></div><div class="release-note"><b>02</b><span><strong>Visible download progress</strong><small>Windows shows download progress and restarts to finish installing. Supported Android builds show APK download progress and open the Android installer.</small></span></div><div class="release-note"><b>03</b><span><strong>Replay-only video moments</strong><small>Status videos play without seek, pause or stop controls; Replay starts the video from the beginning.</small></span></div><div class="release-note"><b>04</b><span><strong>Message notifications</strong><small>Clines can alert you when new messages arrive, subject to notification permission and whether the app is allowed to run.</small></span></div><div class="release-note"><b>05</b><span><strong>Update controls, clearer layout</strong><small>Use Update Clines for a release check or About New for release notes.</small></span></div></div><button id="aboutCheckUpdatesBtn" type="button" class="button button-soft button-wide">↻ Check for updates</button>',
     hidePrimary: true
   });
+  $('aboutCheckUpdatesBtn').addEventListener('click', checkUpdatesManually);
 }
 
 async function addPeopleToGroup() {
@@ -1487,7 +1778,7 @@ async function viewStatus(index) {
   if (s.media_path) {
     const url = await getSignedUrl(s.media_path).catch(() => '');
     if (url && s.kind === 'image') media = '<div class="status-preview"><img src="' + escapeHtml(url) + '" alt=""></div>';
-    else if (url && s.kind === 'video') media = '<div class="status-preview"><video controls autoplay playsinline src="' + escapeHtml(url) + '"></video></div>';
+    else if (url && s.kind === 'video') media = '<div class="status-preview status-video-locked"><video id="statusVideo" autoplay playsinline disablePictureInPicture controlsList="nodownload nofullscreen noplaybackrate" src="' + escapeHtml(url) + '"></video><button id="statusReplayBtn" class="status-replay-button" type="button" hidden>↻ Watch again</button></div>';
   }
   const p = s.author || profile;
   showModal({
@@ -1495,7 +1786,7 @@ async function viewStatus(index) {
     title: p.display_name || 'A moment',
     description: '@' + (p.username || 'friend') + ' · ' + fmtTime(s.created_at) + ' · expires ' + fmtTime(s.expires_at),
     body: media + (s.body ? '<div class="status-caption">' + linkifyText(s.body) + '</div>' : ''),
-    primary: s.user_id === user.id ? 'Delete moment' : 'Next moment →',
+    primary: s.user_id === user.id ? 'Delete moment' : (s.kind === 'video' ? 'Replay video' : 'Next moment →'),
     hideCancel: false,
     onPrimary: async () => {
       if (s.user_id === user.id) {
@@ -1505,6 +1796,18 @@ async function viewStatus(index) {
         closeModal();
         toast('Moment deleted', '');
         await loadStatuses();
+      } else if (s.kind === 'video') {
+        const video = $('statusVideo');
+        if (video) {
+          video.currentTime = 0;
+          video.play().catch(() => {
+            const replay = $('statusReplayBtn');
+            if (replay) { replay.hidden = false; replay.textContent = '▶ Play video'; }
+          });
+          const replay = $('statusReplayBtn');
+          if (replay) replay.hidden = true;
+        }
+        return;
       } else {
         const { data: alreadyViewed, error: viewCheckError } = await db.from('flock_status_views').select('status_id').eq('status_id', s.id).eq('viewer_id', user.id).maybeSingle();
         if (viewCheckError) throw viewCheckError;
@@ -1518,9 +1821,31 @@ async function viewStatus(index) {
     },
     onCancel: null
   });
-  if (s.user_id !== user.id) {
+  if (s.user_id !== user.id && s.kind !== 'video') {
     $('modalPrimaryBtn').textContent = 'Next moment →';
     $('modalPrimaryBtn').disabled = false;
+  }
+  if (s.kind === 'video' && $('statusVideo')) {
+    const video = $('statusVideo');
+    const replay = $('statusReplayBtn');
+    const playAgain = () => {
+      video.currentTime = 0;
+      if (replay) replay.hidden = true;
+      video.play().catch(() => {
+        if (replay) { replay.hidden = false; replay.textContent = '▶ Play video'; }
+      });
+    };
+    video.addEventListener('ended', () => {
+      if (replay) { replay.hidden = false; replay.textContent = '↻ Watch again'; }
+    });
+    video.addEventListener('pause', () => {
+      if (!video.ended && video.currentTime > 0) video.play().catch(() => {});
+    });
+    video.addEventListener('contextmenu', event => event.preventDefault());
+    if (replay) replay.addEventListener('click', playAgain);
+    video.play().catch(() => {
+      if (replay) { replay.hidden = false; replay.textContent = '▶ Play video'; }
+    });
   }
 }
 async function openYouTubeShare() {
@@ -2071,6 +2396,7 @@ function bindEvents() {
   $('openSettingsBtn').addEventListener('click', () => openProfileEditor().catch(err => toast('Could not open profile', err.message, true)));
   $('openBlockedUsersBtn').addEventListener('click', () => openBlockedUsers().catch(err => toast('Could not load blocked users', err.message, true)));
   $('openAboutNewBtn').addEventListener('click', openAboutNew);
+  $('checkUpdatesBtn').addEventListener('click', checkUpdatesManually);
   $('voiceCallBtn').addEventListener('click', () => startVoiceCall().catch(err => toast('Could not start call', err.message || 'Try again.', true)));
   $('myStatusBtn').addEventListener('click', () => openStatuses().catch(err => toast('Could not load moments', err.message, true)));
   $('openStatusesBtn').addEventListener('click', () => openStatuses().catch(err => toast('Could not load moments', err.message, true)));
@@ -2165,6 +2491,7 @@ function bindEvents() {
 async function enterApp() {
   assertUser();
   showApp();
+  requestMessageNotificationPermission().catch(() => {});
   try {
     await refreshProfile();
     await Promise.all([refreshFriends(), refreshConversations()]);
@@ -2178,7 +2505,7 @@ function subscribeGlobal() {
   if (globalPoller) clearInterval(globalPoller);
   globalPoller = null;
   const poll = async () => {
-    if (globalPollBusy || !user || document.hidden) return;
+    if (globalPollBusy || !user || (document.hidden && mobileCapacitorPlatform() !== 'android')) return;
     globalPollBusy = true;
     try {
       await Promise.all([refreshFriends(), refreshConversations({ quiet: true })]);

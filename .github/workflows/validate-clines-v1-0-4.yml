@@ -1,8 +1,11 @@
-name: Validate Clines v1.0.4
+name: Validate Clines v1.0.5
 on:
   push:
     branches:
-      - clines-v1.0.4
+      - clines-v1.0.5
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -11,7 +14,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -19,12 +22,40 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install required Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
       - name: Install dependencies
         run: npm install
-      - name: Check JavaScript syntax
+      - name: Check JavaScript and build scripts
         run: npm run check
       - name: Validate app metadata
         run: |
-          node -e "const p=require('./package.json'); if(p.version!=='1.0.4'||p.build.productName!=='Clines') process.exit(1); JSON.parse(require('fs').readFileSync('capacitor.config.json','utf8')); JSON.parse(require('fs').readFileSync('src/manifest.webmanifest','utf8'));"
+          node -e "const p=require('./package.json'); if(p.version!=='1.0.5'||p.build.productName!=='Clines') process.exit(1); JSON.parse(require('fs').readFileSync('capacitor.config.json','utf8')); JSON.parse(require('fs').readFileSync('src/manifest.webmanifest','utf8'));"
       - name: Prepare Android web assets
         run: npm run mobile:prepare
+      - name: Generate Capacitor Android project
+        run: npx cap add android
+      - name: Add media and install permissions
+        run: node scripts/patch-android-manifest.mjs
+      - name: Sync Android dependencies
+        run: npx cap sync android
+      - name: Restore Android permissions and native updater
+        run: |
+          node scripts/patch-android-manifest.mjs
+          node scripts/patch-android-updater.mjs
+      - name: Configure Android version and API 36
+        env:
+          FLOCK_RELEASE_SIGNING_READY: "false"
+        run: node scripts/patch-android-release.mjs
+      - name: Compile debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
