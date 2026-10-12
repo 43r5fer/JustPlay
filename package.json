@@ -1,14 +1,14 @@
 {
   "name": "clines-messenger",
-  "version": "1.0.4",
-  "description": "Clines — cross-platform messaging with custom sessions and automatic updates",
+  "version": "1.0.5",
+  "description": "Clines — cross-platform messaging with required updates and message notifications",
   "main": "electron/main.cjs",
   "author": "Clines contributors",
   "license": "MIT",
   "scripts": {
     "dev": "electron .",
     "dist:win": "node scripts/write-runtime-version.mjs && electron-builder --win nsis --publish never",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs && node --check scripts/build-mobile.mjs && node --check scripts/patch-android-manifest.mjs && node --check scripts/patch-android-release.mjs && node --check scripts/patch-pwa-assets.mjs && node --check scripts/write-runtime-version.mjs",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/renderer.js && node --check scripts/write-update-manifest.cjs && node --check scripts/build-mobile.mjs && node --check scripts/patch-android-manifest.mjs && node --check scripts/patch-android-updater.mjs && node --check scripts/patch-android-release.mjs && node --check scripts/patch-pwa-assets.mjs && node --check scripts/write-runtime-version.mjs",
     "mobile:prepare": "node scripts/build-mobile.mjs",
     "mobile:android": "npm run mobile:prepare && npx cap sync android"
   },
