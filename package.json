@@ -20,7 +20,8 @@
     "electron": "^44.7.0",
     "electron-builder": "^26.0.12",
     "@capacitor/android": "8.5.3",
-    "@capacitor/cli": "8.5.3"
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "^0.25.0"
   },
   "build": {
     "appId": "com.flock.messaging",
